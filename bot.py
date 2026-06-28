@@ -1,10 +1,11 @@
 # ============================================
 # ربات مدیر گروه هیوا
-# فایل اصلی - نسخه رایگان
+# نسخه کامل با پنل ادمین
 # ============================================
 
 import logging
 import asyncio
+import re
 from datetime import datetime, timedelta
 from telegram import (
     Update, ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup
@@ -124,7 +125,6 @@ async def filter_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if msg.text:
         text = msg.text
-
         if settings.get('lock_link') and ('t.me/' in text or 'telegram.me/' in text):
             reason = "ارسال لینک تلگرام ممنوع است"
         elif settings.get('lock_site') and ('http://' in text or 'https://' in text or 'www.' in text):
@@ -141,7 +141,6 @@ async def filter_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reason = "استفاده از کلمات نامناسب ممنوع است"
         elif settings.get('lock_text'):
             reason = "ارسال متن ممنوع است"
-
     elif msg.photo and settings.get('lock_photo'):
         reason = "ارسال عکس ممنوع است"
     elif msg.video and settings.get('lock_video'):
@@ -275,7 +274,7 @@ async def handle_public_commands(update: Update, context: ContextTypes.DEFAULT_T
             await msg.reply_text("❓ اطلاعاتی یافت نشد.")
 
 # ============================================
-# دستورات ادمین (با ! یا .)
+# دستورات ادمین گروه (با ! یا .)
 # ============================================
 
 async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -285,7 +284,6 @@ async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     text = msg.text.strip()
     group_id = update.effective_chat.id
-    user = update.effective_user
 
     if not (text.startswith('!') or text.startswith('.')):
         await handle_public_commands(update, context)
@@ -340,7 +338,6 @@ async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif 'کیا بیشتر از همه اد کردند' in cmd:
         hours = None
-        import re
         if 'ساعت' in cmd:
             match = re.search(r'(\d+)\s*ساعت', cmd)
             if match:
@@ -464,7 +461,6 @@ async def handle_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("🔓 دستورات عمومی فعال شد.")
 
     elif cmd.startswith('خاموشی'):
-        import re
         match = re.match(r'خاموشی\s*(\d)\s*از\s*(\d{1,2}:\d{2})\s*تا\s*(\d{1,2}:\d{2})', cmd)
         if match:
             num = match.group(1)
@@ -507,12 +503,160 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if chat.type != 'private':
         return
 
-    await update.message.reply_text(
-        f"👋 سلام {get_name(user)}!\n\n"
-        "به ربات مدیر گروه هیوا خوش اومدید 🤖\n\n"
-        "برای استفاده از ربات، کافیه ربات رو به گروهتون اضافه کنید و بهش دسترسی ادمین بدید.\n"
-        "ربات بلافاصله فعال می‌شه! ✅"
-    )
+    if is_admin(user.id):
+        # پنل ادمین اصلی (سازنده)
+        active_groups = db.get_all_active_groups()
+        all_groups = db.get_all_groups()
+        keyboard = [
+            [InlineKeyboardButton("📋 لیست گروه‌ها", callback_data="admin_list_groups")],
+            [InlineKeyboardButton("📊 آمار کلی", callback_data="admin_stats")],
+            [InlineKeyboardButton("📢 پیام به همه گروه‌ها", callback_data="admin_broadcast")],
+        ]
+        await update.message.reply_text(
+            f"👋 سلام {get_name(user)}!\n\n"
+            f"🤖 پنل مدیریت ربات هیوا\n\n"
+            f"📊 گروه‌های فعال: {len(active_groups)}\n"
+            f"📁 کل گروه‌ها: {len(all_groups)}",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    else:
+        await update.message.reply_text(
+            f"👋 سلام {get_name(user)}!\n\n"
+            "به ربات مدیر گروه هیوا خوش اومدید 🤖\n\n"
+            "برای استفاده از ربات، کافیه ربات رو به گروهتون اضافه کنید و بهش دسترسی ادمین بدید.\n"
+            "ربات بلافاصله فعال می‌شه! ✅"
+        )
+
+# ============================================
+# هندلر دکمه‌ها
+# ============================================
+
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user = query.from_user
+    data = query.data
+
+    if not is_admin(user.id):
+        await query.edit_message_text("❌ شما دسترسی ندارید.")
+        return
+
+    if data == "admin_stats":
+        active_groups = db.get_all_active_groups()
+        all_groups = db.get_all_groups()
+        text = (
+            f"📊 آمار کلی ربات هیوا\n\n"
+            f"📁 کل گروه‌ها: {len(all_groups)}\n"
+            f"✅ گروه‌های فعال: {len(active_groups)}\n"
+            f"❌ گروه‌های غیرفعال: {len(all_groups) - len(active_groups)}\n"
+        )
+        keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="admin_back")]]
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+    elif data == "admin_list_groups":
+        all_groups = db.get_all_groups()
+        if not all_groups:
+            await query.edit_message_text("❌ هیچ گروهی ثبت نشده.")
+            return
+        text = "📋 لیست گروه‌ها:\n\n"
+        keyboard = []
+        for g in all_groups[:20]:
+            status = "✅" if g.get('is_active') else "❌"
+            text += f"{status} {g.get('group_name', 'نامشخص')} ({g['group_id']})\n"
+            keyboard.append([InlineKeyboardButton(
+                f"{status} {g.get('group_name', 'نامشخص')}",
+                callback_data=f"admin_group_{g['group_id']}"
+            )])
+        keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data="admin_back")])
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+    elif data.startswith("admin_group_"):
+        group_id = int(data.split("_")[2])
+        group = db.get_group(group_id)
+        if not group:
+            await query.edit_message_text("❌ گروه یافت نشد.")
+            return
+        status = "✅ فعال" if group.get('is_active') else "❌ غیرفعال"
+        text = (
+            f"📌 اطلاعات گروه\n\n"
+            f"🏠 نام: {group.get('group_name', 'نامشخص')}\n"
+            f"🆔 آیدی: {group['group_id']}\n"
+            f"📊 وضعیت: {status}\n"
+            f"👤 مالک: {group.get('owner_username', 'نامشخص')}\n"
+        )
+        toggle_label = "❌ غیرفعال کردن" if group.get('is_active') else "✅ فعال کردن"
+        toggle_data = f"admin_deactivate_{group_id}" if group.get('is_active') else f"admin_activate_{group_id}"
+        keyboard = [
+            [InlineKeyboardButton(toggle_label, callback_data=toggle_data)],
+            [InlineKeyboardButton("🔙 برگشت", callback_data="admin_list_groups")]
+        ]
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+    elif data.startswith("admin_activate_"):
+        group_id = int(data.split("_")[2])
+        db.activate_group_free(group_id)
+        await query.edit_message_text(f"✅ گروه {group_id} فعال شد.")
+
+    elif data.startswith("admin_deactivate_"):
+        group_id = int(data.split("_")[2])
+        db.deactivate_group(group_id)
+        await query.edit_message_text(f"❌ گروه {group_id} غیرفعال شد.")
+
+    elif data == "admin_broadcast":
+        await query.edit_message_text(
+            "📢 پیام خود را برای ارسال به همه گروه‌ها بنویسید و بفرستید.\n\n"
+            "برای لغو بنویسید: /cancel"
+        )
+        context.user_data['action'] = 'broadcast'
+
+    elif data == "admin_back":
+        active_groups = db.get_all_active_groups()
+        all_groups = db.get_all_groups()
+        keyboard = [
+            [InlineKeyboardButton("📋 لیست گروه‌ها", callback_data="admin_list_groups")],
+            [InlineKeyboardButton("📊 آمار کلی", callback_data="admin_stats")],
+            [InlineKeyboardButton("📢 پیام به همه گروه‌ها", callback_data="admin_broadcast")],
+        ]
+        await query.edit_message_text(
+            f"🤖 پنل مدیریت ربات هیوا\n\n"
+            f"📊 گروه‌های فعال: {len(active_groups)}\n"
+            f"📁 کل گروه‌ها: {len(all_groups)}",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+# ============================================
+# هندلر پیام‌های پیوی
+# ============================================
+
+async def private_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != 'private':
+        return
+
+    user = update.effective_user
+    text = update.message.text
+    action = context.user_data.get('action')
+
+    if text == '/cancel':
+        context.user_data.clear()
+        await update.message.reply_text("❌ لغو شد.")
+        return
+
+    if action == 'broadcast' and is_admin(user.id):
+        groups = db.get_all_active_groups()
+        success = 0
+        fail = 0
+        for group in groups:
+            try:
+                await context.bot.send_message(group['group_id'], f"📢 پیام از سازنده:\n\n{text}")
+                success += 1
+            except:
+                fail += 1
+        await update.message.reply_text(
+            f"✅ پیام ارسال شد!\n"
+            f"موفق: {success}\n"
+            f"ناموفق: {fail}"
+        )
+        context.user_data.clear()
 
 # ============================================
 # هندلر اضافه شدن ربات به گروه
@@ -525,9 +669,7 @@ async def bot_added_to_group(update: Update, context: ContextTypes.DEFAULT_TYPE)
         new_status = update.my_chat_member.new_chat_member.status
 
         if new_status in ['member', 'administrator'] and chat.type in ['group', 'supergroup']:
-            # ثبت گروه در دیتابیس
             db.add_group(chat.id, chat.title, user.id, user.username or "")
-            # فعال‌سازی خودکار و رایگان - بدون نیاز به پرداخت
             db.activate_group_free(chat.id)
 
             try:
@@ -539,11 +681,26 @@ async def bot_added_to_group(update: Update, context: ContextTypes.DEFAULT_TYPE)
             except:
                 pass
 
+            # اطلاع به سازنده
             try:
                 await context.bot.send_message(
-                    user.id,
-                    f"✅ ربات هیوا به گروه «{chat.title}» اضافه شد!\n"
-                    f"ربات فعال و آماده استفاده است 🎉"
+                    config.ADMIN_ID,
+                    f"🆕 ربات به گروه جدید اضافه شد!\n\n"
+                    f"🏠 نام: {chat.title}\n"
+                    f"🆔 آیدی: {chat.id}\n"
+                    f"👤 اضافه‌کننده: {get_name(user)} (@{user.username or 'بدون آیدی'})"
+                )
+            except:
+                pass
+
+        elif new_status in ['left', 'kicked'] and chat.type in ['group', 'supergroup']:
+            db.deactivate_group(chat.id)
+            try:
+                await context.bot.send_message(
+                    config.ADMIN_ID,
+                    f"⚠️ ربات از گروه خارج شد!\n\n"
+                    f"🏠 نام: {chat.title}\n"
+                    f"🆔 آیدی: {chat.id}"
                 )
             except:
                 pass
@@ -559,6 +716,8 @@ def main():
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(ChatMemberHandler(bot_added_to_group, ChatMemberHandler.MY_CHAT_MEMBER))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND, private_message))
     app.add_handler(MessageHandler(filters.ChatType.GROUPS & filters.StatusUpdate.NEW_CHAT_MEMBERS, member_joined))
     app.add_handler(MessageHandler(filters.ChatType.GROUPS & ~filters.COMMAND, filter_messages))
 
