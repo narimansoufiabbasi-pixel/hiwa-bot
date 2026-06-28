@@ -160,6 +160,16 @@ def activate_group(group_id, days, plan, is_trial=False):
     conn.close()
     return expiry
 
+def activate_group_free(group_id):
+    """فعال‌سازی رایگان و دائمی گروه"""
+    conn = get_conn()
+    conn.execute("""
+        UPDATE groups SET is_active=1, expiry_date=NULL, plan='free', is_trial=0
+        WHERE group_id=?
+    """, (group_id,))
+    conn.commit()
+    conn.close()
+
 def deactivate_group(group_id):
     conn = get_conn()
     conn.execute("UPDATE groups SET is_active=0 WHERE group_id=?", (group_id,))
