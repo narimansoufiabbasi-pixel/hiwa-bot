@@ -357,3 +357,17 @@ def get_last_delete_reason(group_id, user_id):
     """, (group_id, user_id)).fetchone()
     conn.close()
     return row['reason'] if row else None
+
+def get_all_groups():
+    """لیست همه گروه‌ها"""
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM groups ORDER BY created_at DESC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def get_all_active_groups():
+    """لیست گروه‌های فعال"""
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM groups WHERE is_active=1").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
