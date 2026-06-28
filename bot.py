@@ -118,7 +118,7 @@ async def show_locks_panel(query, group_id):
         val = settings.get(key, 0)
         icon = "🔒" if val else "🔓"
         new_val = 0 if val else 1
-        return InlineKeyboardButton(f"{icon} {label}", callback_data=f"user_toggle_{gid}_{key}_{new_val}")
+        return InlineKeyboardButton(f"{icon} {label}", callback_data=f"utog:{gid}:{key}:{new_val}")
 
     keyboard = [
         [lock_btn("لینک تلگرام", "lock_link", group_id), lock_btn("لینک سایت", "lock_site", group_id)],
@@ -204,11 +204,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         group_id = int(data.split("_")[2])
         await show_locks_panel(query, group_id)
 
-    elif data.startswith("user_toggle_"):
-        parts = data.split("_")
-        group_id = int(parts[2])
-        key = parts[3]
-        val = int(parts[4])
+    elif data.startswith("utog:"):
+        parts = data.split(":")
+        group_id = int(parts[1])
+        key = parts[2]
+        val = int(parts[3])
         db.update_setting(group_id, key, val)
         await show_locks_panel(query, group_id)
 
