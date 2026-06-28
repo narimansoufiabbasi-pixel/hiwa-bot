@@ -371,3 +371,12 @@ def get_all_active_groups():
     rows = conn.execute("SELECT * FROM groups WHERE is_active=1").fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+def get_user_groups(user_id):
+    """گروه‌هایی که این کاربر ربات را اضافه کرده"""
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM groups WHERE owner_id=? AND is_active=1", (user_id,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
