@@ -284,13 +284,13 @@ async def show_other(query, group_id):
     g = db.get_group(group_id)
     name = g.get('group_name','نامشخص') if g else 'نامشخص'
     gem = s.get('gemini_enabled', 0)
-    del = s.get('delete_bot_msg', 0)
+    del_msg = s.get('delete_bot_msg', 0)
     del_sec = s.get('delete_bot_msg_seconds', 30)
     keyboard = [
         [InlineKeyboardButton(f"{'✅' if gem else '❌'} 🤖 هوش مصنوعی Gemini",
             callback_data=f"tog:{group_id}:gemini_enabled:{0 if gem else 1}")],
-        [InlineKeyboardButton(f"{'✅' if del else '❌'} حذف خودکار پیام ربات ({del_sec}ث)",
-            callback_data=f"tog:{group_id}:delete_bot_msg:{0 if del else 1}")],
+        [InlineKeyboardButton(f"{'✅' if del_msg else '❌'} حذف خودکار پیام ربات ({del_sec}ث)",
+            callback_data=f"tog:{group_id}:delete_bot_msg:{0 if del_msg else 1}")],
         [InlineKeyboardButton("📖 راهنما", callback_data="help:other")],
         [InlineKeyboardButton("🔙 برگشت", callback_data=f"grp:{group_id}")],
     ]
