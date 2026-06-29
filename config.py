@@ -3,7 +3,7 @@
 # ============================================
 
 # توکن ربات (از BotFather گرفتی)
-BOT_TOKEN = "8887594793:AAG0JvPtr8EgKgFYRo_dRya6zss827NyMLY"
+BOT_TOKEN = "8887594793:AAExCttWStcAdDd2t4P-ctaqPHtRDlq0yQA"
 
 # آیدی عددی ادمین اصلی
 ADMIN_ID = 728288408
