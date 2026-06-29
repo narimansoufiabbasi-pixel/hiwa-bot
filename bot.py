@@ -1042,7 +1042,7 @@ def main():
     app.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND, private_message))
     app.add_handler(MessageHandler(filters.ChatType.GROUPS & filters.StatusUpdate.NEW_CHAT_MEMBERS, member_joined))
     app.add_handler(MessageHandler(filters.ChatType.GROUPS & filters.StatusUpdate.LEFT_CHAT_MEMBER, member_left))
-    app.add_handler(MessageHandler(filters.ChatType.GROUPS & ~filters.COMMAND, filter_messages))
+    app.add_handler(MessageHandler(filters.ChatType.GROUPS & ~filters.COMMAND & ~filters.StatusUpdate.ALL, filter_messages))
     print("🤖 ربات هیوا نسخه 3 در حال اجراست...")
     app.run_polling(drop_pending_updates=True)
 
