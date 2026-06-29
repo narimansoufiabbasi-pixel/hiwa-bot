@@ -3,7 +3,8 @@
 # ============================================
 
 # توکن ربات (از BotFather گرفتی)
-BOT_TOKEN = "8887594793:AAExCttWStcAdDd2t4P-ctaqPHtRDlq0yQA"
+import os
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
 # آیدی عددی ادمین اصلی
 ADMIN_ID = 728288408
