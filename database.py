@@ -213,12 +213,17 @@ def update_group_field(group_id, field, value):
 # تنظیمات
 def get_settings(group_id):
     conn = get_conn()
+    # اگه رکورد نبود، یه رکورد خالی بساز
+    conn.execute("INSERT OR IGNORE INTO group_settings (group_id) VALUES (?)", (group_id,))
+    conn.commit()
     row = conn.execute("SELECT * FROM group_settings WHERE group_id=?", (group_id,)).fetchone()
     conn.close()
     return dict(row) if row else {}
 
 def update_setting(group_id, key, value):
     conn = get_conn()
+    # اول مطمئن میشیم رکورد وجود داره
+    conn.execute("INSERT OR IGNORE INTO group_settings (group_id) VALUES (?)", (group_id,))
     conn.execute(f"UPDATE group_settings SET {key}=? WHERE group_id=?", (value, group_id))
     conn.commit(); conn.close()
 
