@@ -49,7 +49,6 @@ def init_db():
             welcome_text TEXT DEFAULT '',
             welcome_button INTEGER DEFAULT 0,
             goodbye_enabled INTEGER DEFAULT 0,
-            goodbye_text TEXT DEFAULT '',
             anti_spam INTEGER DEFAULT 0,
             anti_flood INTEGER DEFAULT 0,
             anti_flood_count INTEGER DEFAULT 5,
@@ -65,16 +64,15 @@ def init_db():
             delete_bot_msg INTEGER DEFAULT 0,
             delete_bot_msg_seconds INTEGER DEFAULT 30,
             gemini_enabled INTEGER DEFAULT 0,
-            daily_stats INTEGER DEFAULT 0,
-            auto_reminder INTEGER DEFAULT 0,
-            reminder_text TEXT DEFAULT '',
-            reminder_hour INTEGER DEFAULT 9,
             quiet_1_from TEXT,
             quiet_1_to TEXT,
+            quiet_1_state INTEGER DEFAULT 0,
             quiet_2_from TEXT,
             quiet_2_to TEXT,
+            quiet_2_state INTEGER DEFAULT 0,
             quiet_3_from TEXT,
-            quiet_3_to TEXT
+            quiet_3_to TEXT,
+            quiet_3_state INTEGER DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS bad_words (
@@ -143,15 +141,6 @@ def init_db():
             joined_at TEXT DEFAULT (datetime('now')),
             PRIMARY KEY(group_id, user_id)
         );
-
-        CREATE TABLE IF NOT EXISTS unique_invite_links (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            group_id INTEGER,
-            user_id INTEGER,
-            user_name TEXT,
-            link TEXT,
-            created_at TEXT DEFAULT (datetime('now'))
-        );
     """)
     conn.commit()
     conn.close()
@@ -182,12 +171,6 @@ def get_all_active_groups():
     conn.close()
     return [dict(r) for r in rows]
 
-def get_user_groups(user_id):
-    conn = get_conn()
-    rows = conn.execute("SELECT * FROM groups WHERE owner_id=? AND is_active=1", (user_id,)).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
 def activate_group_free(group_id):
     conn = get_conn()
     conn.execute("UPDATE groups SET is_active=1 WHERE group_id=?", (group_id,))
@@ -213,7 +196,6 @@ def update_group_field(group_id, field, value):
 # تنظیمات
 def get_settings(group_id):
     conn = get_conn()
-    # اگه رکورد نبود، یه رکورد خالی بساز
     conn.execute("INSERT OR IGNORE INTO group_settings (group_id) VALUES (?)", (group_id,))
     conn.commit()
     row = conn.execute("SELECT * FROM group_settings WHERE group_id=?", (group_id,)).fetchone()
@@ -222,10 +204,20 @@ def get_settings(group_id):
 
 def update_setting(group_id, key, value):
     conn = get_conn()
-    # اول مطمئن میشیم رکورد وجود داره
     conn.execute("INSERT OR IGNORE INTO group_settings (group_id) VALUES (?)", (group_id,))
     conn.execute(f"UPDATE group_settings SET {key}=? WHERE group_id=?", (value, group_id))
     conn.commit(); conn.close()
+
+def get_all_settings_rows():
+    """برای job چک کردن خاموشی - همه گروه‌های فعال با تنظیماتشون"""
+    conn = get_conn()
+    rows = conn.execute("""
+        SELECT gs.*, g.group_name, g.is_active FROM group_settings gs
+        JOIN groups g ON gs.group_id = g.group_id
+        WHERE g.is_active = 1
+    """).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 # کلمات بد
 def add_bad_word(group_id, word):
