@@ -20,17 +20,20 @@ def init_db():
             group_link TEXT,
             group_info TEXT,
             group_rules TEXT,
+            member_count INTEGER DEFAULT 0,
             created_at TEXT DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS group_settings (
             group_id INTEGER PRIMARY KEY,
+            lang TEXT DEFAULT 'fa',
             lock_link INTEGER DEFAULT 0,
             lock_site INTEGER DEFAULT 0,
             lock_id INTEGER DEFAULT 0,
             lock_hashtag INTEGER DEFAULT 0,
             lock_photo INTEGER DEFAULT 0,
             lock_video INTEGER DEFAULT 0,
+            lock_video_note INTEGER DEFAULT 0,
             lock_sticker INTEGER DEFAULT 0,
             lock_gif INTEGER DEFAULT 0,
             lock_voice INTEGER DEFAULT 0,
@@ -40,6 +43,8 @@ def init_db():
             lock_phone INTEGER DEFAULT 0,
             lock_forward INTEGER DEFAULT 0,
             lock_forward_channel INTEGER DEFAULT 0,
+            lock_forward_group INTEGER DEFAULT 0,
+            lock_forward_user INTEGER DEFAULT 0,
             lock_text INTEGER DEFAULT 0,
             lock_bad_words INTEGER DEFAULT 0,
             lock_slash INTEGER DEFAULT 0,
@@ -54,6 +59,7 @@ def init_db():
             anti_flood_count INTEGER DEFAULT 5,
             anti_flood_seconds INTEGER DEFAULT 10,
             anti_raid INTEGER DEFAULT 0,
+            bot_detection INTEGER DEFAULT 0,
             auto_warn INTEGER DEFAULT 0,
             warn_limit INTEGER DEFAULT 3,
             warn_action TEXT DEFAULT 'kick',
@@ -114,16 +120,47 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             group_id INTEGER,
             user_id INTEGER,
+            user_name TEXT,
             reason TEXT,
             warned_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS violations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER,
+            user_id INTEGER,
+            user_name TEXT,
+            action TEXT,
+            reason TEXT,
+            done_at TEXT DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS deleted_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             group_id INTEGER,
             user_id INTEGER,
+            user_name TEXT,
             reason TEXT,
             deleted_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS member_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER,
+            user_id INTEGER,
+            user_name TEXT,
+            action TEXT,
+            done_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS message_activity (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER,
+            user_id INTEGER,
+            user_name TEXT,
+            hour INTEGER,
+            msg_date TEXT DEFAULT (date('now')),
+            done_at TEXT DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS flood_tracker (
@@ -193,6 +230,16 @@ def update_group_field(group_id, field, value):
     conn.execute(f"UPDATE groups SET {field}=? WHERE group_id=?", (value, group_id))
     conn.commit(); conn.close()
 
+def get_all_settings_rows():
+    conn = get_conn()
+    rows = conn.execute("""
+        SELECT gs.*, g.group_name, g.is_active FROM group_settings gs
+        JOIN groups g ON gs.group_id = g.group_id
+        WHERE g.is_active = 1
+    """).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
 # تنظیمات
 def get_settings(group_id):
     conn = get_conn()
@@ -207,17 +254,6 @@ def update_setting(group_id, key, value):
     conn.execute("INSERT OR IGNORE INTO group_settings (group_id) VALUES (?)", (group_id,))
     conn.execute(f"UPDATE group_settings SET {key}=? WHERE group_id=?", (value, group_id))
     conn.commit(); conn.close()
-
-def get_all_settings_rows():
-    """برای job چک کردن خاموشی - همه گروه‌های فعال با تنظیماتشون"""
-    conn = get_conn()
-    rows = conn.execute("""
-        SELECT gs.*, g.group_name, g.is_active FROM group_settings gs
-        JOIN groups g ON gs.group_id = g.group_id
-        WHERE g.is_active = 1
-    """).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
 
 # کلمات بد
 def add_bad_word(group_id, word):
@@ -326,9 +362,10 @@ def get_invite_stats(group_id, hours=None):
     return [dict(r) for r in rows]
 
 # اخطارها
-def add_warning(group_id, user_id, reason=""):
+def add_warning(group_id, user_id, user_name, reason=""):
     conn = get_conn()
-    conn.execute("INSERT INTO warnings (group_id,user_id,reason) VALUES (?,?,?)", (group_id, user_id, reason))
+    conn.execute("INSERT INTO warnings (group_id,user_id,user_name,reason) VALUES (?,?,?,?)",
+        (group_id, user_id, user_name, reason))
     conn.commit(); conn.close()
 
 def get_warnings(group_id, user_id):
@@ -338,15 +375,43 @@ def get_warnings(group_id, user_id):
     conn.close()
     return row['cnt'] if row else 0
 
+def get_user_warnings(group_id, user_id):
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM warnings WHERE group_id=? AND user_id=? ORDER BY warned_at DESC",
+        (group_id, user_id)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
 def reset_warnings(group_id, user_id):
     conn = get_conn()
     conn.execute("DELETE FROM warnings WHERE group_id=? AND user_id=?", (group_id, user_id))
     conn.commit(); conn.close()
 
-# پیام‌های حذف شده
-def log_deleted_message(group_id, user_id, reason):
+# تخلفات
+def log_violation(group_id, user_id, user_name, action, reason=""):
     conn = get_conn()
-    conn.execute("INSERT INTO deleted_messages (group_id,user_id,reason) VALUES (?,?,?)", (group_id, user_id, reason))
+    conn.execute("INSERT INTO violations (group_id,user_id,user_name,action,reason) VALUES (?,?,?,?,?)",
+        (group_id, user_id, user_name, action, reason))
+    conn.commit(); conn.close()
+
+def get_user_violations(group_id, user_id):
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM violations WHERE group_id=? AND user_id=? ORDER BY done_at DESC LIMIT 20",
+        (group_id, user_id)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def get_group_violations_count(group_id):
+    conn = get_conn()
+    row = conn.execute("SELECT COUNT(*) as cnt FROM violations WHERE group_id=?", (group_id,)).fetchone()
+    conn.close()
+    return row['cnt'] if row else 0
+
+# پیام‌های حذف شده
+def log_deleted_message(group_id, user_id, user_name, reason):
+    conn = get_conn()
+    conn.execute("INSERT INTO deleted_messages (group_id,user_id,user_name,reason) VALUES (?,?,?,?)",
+        (group_id, user_id, user_name, reason))
     conn.commit(); conn.close()
 
 def get_last_delete_reason(group_id, user_id):
@@ -356,18 +421,70 @@ def get_last_delete_reason(group_id, user_id):
     conn.close()
     return row['reason'] if row else None
 
+def get_deleted_count(group_id):
+    conn = get_conn()
+    row = conn.execute("SELECT COUNT(*) as cnt FROM deleted_messages WHERE group_id=?", (group_id,)).fetchone()
+    conn.close()
+    return row['cnt'] if row else 0
+
+# تاریخچه ورود/خروج
+def log_member(group_id, user_id, user_name, action):
+    conn = get_conn()
+    conn.execute("INSERT INTO member_history (group_id,user_id,user_name,action) VALUES (?,?,?,?)",
+        (group_id, user_id, user_name, action))
+    conn.commit(); conn.close()
+
+def get_member_growth(group_id, days=7):
+    conn = get_conn()
+    since = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    rows = conn.execute("""
+        SELECT date(done_at) as day,
+            SUM(CASE WHEN action='join' THEN 1 ELSE 0 END) as joins,
+            SUM(CASE WHEN action='left' THEN 1 ELSE 0 END) as lefts
+        FROM member_history WHERE group_id=? AND date(done_at) >= ?
+        GROUP BY day ORDER BY day
+    """, (group_id, since)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+# فعالیت ساعتی
+def log_message_activity(group_id, user_id, user_name):
+    hour = datetime.now().hour
+    conn = get_conn()
+    conn.execute("INSERT INTO message_activity (group_id,user_id,user_name,hour) VALUES (?,?,?,?)",
+        (group_id, user_id, user_name, hour))
+    conn.commit(); conn.close()
+
+def get_hourly_activity(group_id, days=7):
+    conn = get_conn()
+    since = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    rows = conn.execute("""
+        SELECT hour, COUNT(*) as count FROM message_activity
+        WHERE group_id=? AND msg_date >= ? GROUP BY hour ORDER BY hour
+    """, (group_id, since)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def get_active_users(group_id, days=7):
+    conn = get_conn()
+    since = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    rows = conn.execute("""
+        SELECT user_id, user_name, COUNT(*) as count FROM message_activity
+        WHERE group_id=? AND msg_date >= ? GROUP BY user_id ORDER BY count DESC LIMIT 10
+    """, (group_id, since)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
 # فلود
 def track_flood(group_id, user_id):
     conn = get_conn()
     row = conn.execute("SELECT * FROM flood_tracker WHERE group_id=? AND user_id=?", (group_id, user_id)).fetchone()
     if row:
         conn.execute("UPDATE flood_tracker SET msg_count=msg_count+1 WHERE group_id=? AND user_id=?", (group_id, user_id))
-        count = row['msg_count'] + 1
-        first_time = row['first_msg_at']
+        count = row['msg_count'] + 1; first_time = row['first_msg_at']
     else:
         conn.execute("INSERT INTO flood_tracker (group_id,user_id) VALUES (?,?)", (group_id, user_id))
-        count = 1
-        first_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        count = 1; first_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn.commit(); conn.close()
     return count, first_time
 
@@ -393,3 +510,22 @@ def is_captcha_pending(group_id, user_id):
     row = conn.execute("SELECT 1 FROM captcha_pending WHERE group_id=? AND user_id=?", (group_id, user_id)).fetchone()
     conn.close()
     return bool(row)
+
+# آمار گروه
+def get_group_stats(group_id):
+    conn = get_conn()
+    deleted = conn.execute("SELECT COUNT(*) as cnt FROM deleted_messages WHERE group_id=?", (group_id,)).fetchone()
+    warns = conn.execute("SELECT COUNT(*) as cnt FROM warnings WHERE group_id=?", (group_id,)).fetchone()
+    violations = conn.execute("SELECT COUNT(*) as cnt FROM violations WHERE group_id=?", (group_id,)).fetchone()
+    joins = conn.execute("SELECT COUNT(*) as cnt FROM member_history WHERE group_id=? AND action='join'", (group_id,)).fetchone()
+    lefts = conn.execute("SELECT COUNT(*) as cnt FROM member_history WHERE group_id=? AND action='left'", (group_id,)).fetchone()
+    invites = conn.execute("SELECT COUNT(*) as cnt FROM invites WHERE group_id=?", (group_id,)).fetchone()
+    conn.close()
+    return {
+        'deleted': deleted['cnt'] if deleted else 0,
+        'warns': warns['cnt'] if warns else 0,
+        'violations': violations['cnt'] if violations else 0,
+        'joins': joins['cnt'] if joins else 0,
+        'lefts': lefts['cnt'] if lefts else 0,
+        'invites': invites['cnt'] if invites else 0,
+    }
