@@ -17,37 +17,24 @@ from jalali import jalali_str
 from languages import t
 
 
-import urllib.request
-import json as _json
-
-GEMINI_API_KEY = "AIzaSyDummy"  # سازنده باید در config.py تنظیم کنه
-
-async def ask_gemini(prompt, group_id=None):
-    """ارسال سوال به Gemini و دریافت پاسخ"""
-    api_key = getattr(config, 'GEMINI_API_KEY', '')
-    if not api_key:
-        return "❌ کلید API Gemini تنظیم نشده."
-    
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}"
-    
-    data = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"maxOutputTokens": 500}
-    }
-    
-    req = urllib.request.Request(
-        url,
-        data=_json.dumps(data).encode(),
-        headers={"Content-Type": "application/json"},
-        method="POST"
-    )
-    
+async def ask_gemini(prompt):
+    """ارسال سوال به Gemini با google-genai"""
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            result = _json.loads(resp.read())
-            return result["candidates"][0]["content"]["parts"][0]["text"]
+        import os
+        from google import genai as _genai
+        api_key = getattr(config, 'GEMINI_API_KEY', '') or os.environ.get('GEMINI_API_KEY', '')
+        if not api_key:
+            return "❌ کلید API Gemini تنظیم نشده. از config.py اضافه کنید."
+        client = _genai.Client(api_key=api_key)
+        interaction = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt,
+        )
+        return interaction.text
+    except ImportError:
+        return "❌ کتابخانه google-genai نصب نیست."
     except Exception as e:
-        return f"❌ خطا در Gemini: {str(e)[:100]}"
+        return f"❌ خطا: {str(e)[:150]}"
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -266,7 +253,7 @@ async def show_locks(query, group_id):
         [btn("فوروارد کانال", "lock_forward_channel"), btn("فوروارد گروه", "lock_forward_group")],
         [btn("فوروارد کاربر", "lock_forward_user"), btn("کلمات ممنوعه", "lock_bad_words")],
         [btn("اسلش", "lock_slash"), btn("دستورات عمومی", "public_commands")],
-        [btn("🔒 قفل کامل گروه", "group_locked")],
+        [btn("😀 ایموجی", "lock_emoji"), btn("🔒 قفل کامل گروه", "group_locked")],
         [InlineKeyboardButton("🔙 برگشت", callback_data=f"grp:{group_id}")],
     ]
     await query.edit_message_text(
@@ -745,6 +732,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("📋 لیست گروه‌ها", callback_data="admin:list")],
             [InlineKeyboardButton("📊 آمار کلی", callback_data="admin:stats")],
             [InlineKeyboardButton("📢 پیام به همه", callback_data="admin:broadcast")],
+            [InlineKeyboardButton("💰 مدیریت اشتراک‌ها", callback_data="admin:subs")],
             [InlineKeyboardButton("👤 پنل مدیریت گروه‌ها", callback_data="mygroups")],
         ]
         await update.message.reply_text(
@@ -1011,6 +999,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     [InlineKeyboardButton("📋 لیست گروه‌ها", callback_data="admin:list")],
                     [InlineKeyboardButton("📊 آمار کلی", callback_data="admin:stats")],
                     [InlineKeyboardButton("📢 پیام به همه", callback_data="admin:broadcast")],
+                    [InlineKeyboardButton("💰 مدیریت اشتراک‌ها", callback_data="admin:subs")],
                     [InlineKeyboardButton("👤 پنل مدیریت گروه‌ها", callback_data="mygroups")],
                 ]
                 await query.edit_message_text(f"🤖 پنل سازنده\n\n✅ فعال: {len(ag)} | 📁 کل: {len(allg)}",
@@ -1100,6 +1089,31 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.edit_message_text(f"✅ اشتراک {days} روزه فعال شد.")
             else:
                 await query.edit_message_text("✅ گروه رایگان و دائمی شد.")
+
+        elif data == "admin:subs":
+            if not is_owner(user.id): return
+            allg = db.get_all_groups()
+            text = "💰 مدیریت اشتراک‌ها\n\n"
+            keyboard = []
+            for g in allg[:20]:
+                sub = db.get_group_subscription(g['group_id'])
+                if sub and sub.get('expiry_date'):
+                    try:
+                        from datetime import datetime
+                        exp = datetime.strptime(sub['expiry_date'], "%Y-%m-%d %H:%M:%S")
+                        days_left = (exp - datetime.now()).days
+                        status = f"⏳ {days_left}روز" if days_left > 0 else "❌ منقضی"
+                    except:
+                        status = "✅"
+                else:
+                    status = "🆓 رایگان"
+                keyboard.append([InlineKeyboardButton(
+                    f"{status} | {g.get('group_name','نامشخص')}",
+                    callback_data=f"admin:grp:{g['group_id']}")])
+            keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data="admin:back")])
+            await query.edit_message_text(
+                "💰 مدیریت اشتراک‌ها\n\n📌 روی هر گروه بزنید تا اشتراک تنظیم کنید:",
+                reply_markup=InlineKeyboardMarkup(keyboard))
 
         elif data.startswith("admin:act:"):
             if not is_owner(user.id): return
@@ -1479,6 +1493,18 @@ async def filter_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reason = t("lock_bad_words", lang)
         if not reason and s.get('anti_spam') and msg.forward_date:
             reason = t("anti_spam", lang)
+        if not reason and s.get('lock_emoji') and txt:
+            # تشخیص ایموجی - کاراکترهای unicode بالای U+1F000
+            import unicodedata
+            has_emoji = any(
+                unicodedata.category(c) in ('So', 'Sm') or
+                0x1F000 <= ord(c) <= 0x1FFFF or
+                0x2600 <= ord(c) <= 0x27BF or
+                0xFE00 <= ord(c) <= 0xFE0F
+                for c in txt
+            )
+            if has_emoji:
+                reason = "ارسال ایموجی ممنوع است" 
 
     elif msg.photo and s.get('lock_photo'): reason = t("lock_photo", lang)
     elif msg.video and s.get('lock_video'): reason = t("lock_video", lang)
