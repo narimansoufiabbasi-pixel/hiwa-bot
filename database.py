@@ -21,6 +21,8 @@ def init_db():
             group_info TEXT,
             group_rules TEXT,
             member_count INTEGER DEFAULT 0,
+            expiry_date TEXT,
+            plan TEXT DEFAULT 'free',
             created_at TEXT DEFAULT (datetime('now'))
         );
 
@@ -529,3 +531,48 @@ def get_group_stats(group_id):
         'lefts': lefts['cnt'] if lefts else 0,
         'invites': invites['cnt'] if invites else 0,
     }
+
+# اشتراک
+def get_group_subscription(group_id):
+    conn = get_conn()
+    row = conn.execute("SELECT expiry_date, plan, is_active FROM groups WHERE group_id=?", (group_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def set_group_subscription(group_id, days):
+    conn = get_conn()
+    if days > 0:
+        expiry = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute("UPDATE groups SET expiry_date=?, plan='paid', is_active=1 WHERE group_id=?", (expiry, group_id))
+    else:
+        conn.execute("UPDATE groups SET expiry_date=NULL, plan='free', is_active=1 WHERE group_id=?", (group_id,))
+    conn.commit(); conn.close()
+
+def check_expired_subscriptions():
+    """چک می‌کنه کدوم اشتراک‌ها منقضی شدن"""
+    conn = get_conn()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    rows = conn.execute("""
+        SELECT group_id, group_name, owner_id FROM groups 
+        WHERE plan='paid' AND expiry_date IS NOT NULL AND expiry_date < ? AND is_active=1
+    """, (now,)).fetchall()
+    if rows:
+        conn.execute("""
+            UPDATE groups SET is_active=0 
+            WHERE plan='paid' AND expiry_date IS NOT NULL AND expiry_date < ?
+        """, (now,))
+        conn.commit()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def get_expiring_soon(days=3):
+    """گروه‌هایی که ظرف چند روز آینده منقضی میشن"""
+    conn = get_conn()
+    future = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    rows = conn.execute("""
+        SELECT group_id, group_name, owner_id, expiry_date FROM groups
+        WHERE plan='paid' AND expiry_date IS NOT NULL AND expiry_date > ? AND expiry_date < ? AND is_active=1
+    """, (now, future)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
