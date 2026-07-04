@@ -91,6 +91,33 @@ def get_lang(group_id):
 # JOB: چک ساعت خاموشی هر دقیقه
 # ============================================
 
+async def check_subscriptions_job(context: ContextTypes.DEFAULT_TYPE):
+    """چک انقضای اشتراک‌ها - هر روز یه بار"""
+    # غیرفعال کردن اشتراک‌های منقضی
+    expired = db.check_expired_subscriptions()
+    for g in expired:
+        try:
+            await context.bot.send_message(g['group_id'],
+                "⚠️ اشتراک ربات هیوا در این گروه منقضی شد. برای تمدید با سازنده تماس بگیرید.")
+        except: pass
+        try:
+            await context.bot.send_message(g['owner_id'],
+                f"⚠️ اشتراک ربات در گروه {g['group_name']} منقضی شد. برای تمدید با سازنده تماس بگیرید.")
+        except: pass
+        try:
+            await context.bot.send_message(config.ADMIN_ID,
+                f"🔴 اشتراک گروه «{g['group_name']}» (آیدی: {g['group_id']}) منقضی شد.")
+        except: pass
+
+    # اطلاع‌رسانی انقضای نزدیک (3 روز مانده)
+    expiring = db.get_expiring_soon(3)
+    for g in expiring:
+        try:
+            await context.bot.send_message(g['owner_id'],
+                f"⏰ اشتراک ربات در گروه {g['group_name']} تا 3 روز دیگر منقضی می‌شود. برای تمدید با سازنده تماس بگیرید.")
+        except: pass
+
+
 async def check_quiet_hours_job(context: ContextTypes.DEFAULT_TYPE):
     now = now_time_str()
     rows = db.get_all_settings_rows()
@@ -156,6 +183,7 @@ async def show_group_menu(query, group_id):
          InlineKeyboardButton("📊 تابلو آمار", callback_data=f"dashboard:{group_id}")],
         [InlineKeyboardButton("👥 مدیریت کاربران", callback_data=f"users:{group_id}"),
          InlineKeyboardButton("⚙️ تنظیمات", callback_data=f"other:{group_id}")],
+        [InlineKeyboardButton("📞 ارتباط با سازنده", callback_data=f"contact_owner:{group_id}")],
         [InlineKeyboardButton("📖 راهنما", callback_data=f"help:main:mygroups:0"),
          InlineKeyboardButton("🔙 برگشت", callback_data="mygroups")],
     ]
@@ -177,26 +205,16 @@ async def show_locks(query, group_id):
         return InlineKeyboardButton(f"{ico} | {label}", callback_data=f"tog:{group_id}:{key}:{nv}")
 
     keyboard = [
-        [btn("لینک تلگرام", "lock_link")],
-        [btn("لینک سایت", "lock_site")],
-        [btn("آیدی/منشن", "lock_id")],
-        [btn("هشتگ", "lock_hashtag")],
-        [btn("عکس", "lock_photo")],
-        [btn("فیلم و فیلم سلفی", "lock_video")],
-        [btn("استیکر (ثابت و متحرک)", "lock_sticker")],
-        [btn("گیف", "lock_gif")],
-        [btn("صدا", "lock_voice")],
-        [btn("فایل", "lock_file")],
-        [btn("نظرسنجی", "lock_poll")],
-        [btn("لوکیشن", "lock_location")],
-        [btn("شماره تلفن", "lock_phone")],
-        [btn("فوروارد از کانال", "lock_forward_channel")],
-        [btn("فوروارد از گروه", "lock_forward_group")],
-        [btn("فوروارد از کاربر", "lock_forward_user")],
-        [btn("متن", "lock_text")],
-        [btn("کلمات ممنوعه", "lock_bad_words")],
-        [btn("اسلش کامند", "lock_slash")],
-        [btn("دستورات عمومی", "public_commands")],
+        [btn("لینک تلگرام", "lock_link"), btn("لینک سایت", "lock_site")],
+        [btn("آیدی/منشن", "lock_id"), btn("هشتگ", "lock_hashtag")],
+        [btn("عکس", "lock_photo"), btn("فیلم+سلفی", "lock_video")],
+        [btn("استیکر", "lock_sticker"), btn("گیف", "lock_gif")],
+        [btn("صدا", "lock_voice"), btn("فایل", "lock_file")],
+        [btn("نظرسنجی", "lock_poll"), btn("لوکیشن", "lock_location")],
+        [btn("شماره تلفن", "lock_phone"), btn("متن", "lock_text")],
+        [btn("فوروارد کانال", "lock_forward_channel"), btn("فوروارد گروه", "lock_forward_group")],
+        [btn("فوروارد کاربر", "lock_forward_user"), btn("کلمات ممنوعه", "lock_bad_words")],
+        [btn("اسلش", "lock_slash"), btn("دستورات عمومی", "public_commands")],
         [btn("🔒 قفل کامل گروه", "group_locked")],
         [InlineKeyboardButton("🔙 برگشت", callback_data=f"grp:{group_id}")],
     ]
@@ -601,9 +619,10 @@ async def show_other(query, group_id):
         [tbtn("🤖 هوش مصنوعی Gemini", "gemini_enabled", gem)],
         [tbtn(f"🗑 حذف خودکار پیام ربات", "delete_bot_msg", del_bot)],
         [InlineKeyboardButton(f"⏱ زمان حذف: {del_sec} ثانیه", callback_data=f"delsec:{group_id}")],
-        [InlineKeyboardButton("🔗 تنظیم لینک گروه", callback_data=f"setlink:{group_id}")],
-        [InlineKeyboardButton("📝 توضیحات گروه", callback_data=f"setinfo:{group_id}")],
+        [InlineKeyboardButton("🔗 لینک گروه", callback_data=f"setlink:{group_id}"),
+         InlineKeyboardButton("📝 توضیحات", callback_data=f"setinfo:{group_id}")],
         [InlineKeyboardButton("📜 قوانین گروه", callback_data=f"setrules:{group_id}")],
+        [InlineKeyboardButton("📩 ارتباط با سازنده", callback_data=f"contactowner:{group_id}")],
         [InlineKeyboardButton("🔙 برگشت", callback_data=f"grp:{group_id}")],
     ]
     await query.edit_message_text(f"⚙️ تنظیمات «{name}»", reply_markup=InlineKeyboardMarkup(keyboard))
@@ -793,6 +812,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             db.update_setting(group_id, 'delete_bot_msg_seconds', n)
             await show_other(query, group_id)
 
+        elif data.startswith("contactowner:"):
+            group_id = int(data.split(":")[1])
+            context.user_data['action'] = f'contactowner:{group_id}'
+            await query.edit_message_text(
+                "📩 پیام خود را بنویسید (سوال، مشکل یا فیش واریز):\n\n"
+                "پیام شما مستقیم به سازنده ربات ارسال می‌شود.\n\n"
+                "برای لغو: /cancel")
+
         elif data.startswith("setlink:"):
             group_id = int(data.split(":")[1])
             context.user_data['action'] = f'setlink:{group_id}'
@@ -926,21 +953,81 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.edit_message_text("❌ یافت نشد.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 برگشت", callback_data="admin:list")]]))
                 return
             st = "✅ فعال" if g.get('is_active') else "❌ غیرفعال"
-            tl = "❌ غیرفعال" if g.get('is_active') else "✅ فعال"
+            tl = "❌ غیرفعال کردن" if g.get('is_active') else "✅ فعال کردن"
             td = f"admin:deact:{group_id}" if g.get('is_active') else f"admin:act:{group_id}"
+            # اشتراک
+            sub = db.get_group_subscription(group_id)
+            if sub and sub.get('expiry_date'):
+                try:
+                    exp = datetime.strptime(sub['expiry_date'], "%Y-%m-%d %H:%M:%S")
+                    days_left = (exp - datetime.now()).days
+                    sub_text = f"📅 اشتراک: {days_left} روز مانده"
+                except:
+                    sub_text = "📅 اشتراک: نامشخص"
+            else:
+                sub_text = "📅 اشتراک: رایگان (دائم)"
             keyboard = [
                 [InlineKeyboardButton(tl, callback_data=td)],
-                [InlineKeyboardButton("📢 ارسال پیام به این گروه", callback_data=f"admin:sendmsg:{group_id}")],
-                [InlineKeyboardButton("🚪 حذف ربات از گروه", callback_data=f"admin:leave:{group_id}")],
+                [InlineKeyboardButton("📢 پیام به گروه", callback_data=f"admin:sendmsg:{group_id}"),
+                 InlineKeyboardButton("👤 پیام به مدیر", callback_data=f"admin:sendowner:{group_id}")],
+                [InlineKeyboardButton("⏱ تنظیم اشتراک", callback_data=f"admin:setsub:{group_id}"),
+                 InlineKeyboardButton("🚪 حذف ربات", callback_data=f"admin:leave:{group_id}")],
                 [InlineKeyboardButton("🔙 برگشت", callback_data="admin:list")]
             ]
-            await query.edit_message_text(
-                f"📌 {g.get('group_name','نامشخص')}\n🆔 {group_id}\n📊 {st}\n"
-                f"👤 @{g.get('owner_username','-')}\n\n"
+            text_out = (
+                f"📌 {g.get('group_name','نامشخص')}\n"
+                f"🆔 {group_id}\n📊 {st}\n"
+                f"👤 @{g.get('owner_username','-')}\n{sub_text}\n\n"
                 f"🗑 پیام حذف: {stats['deleted']}\n"
                 f"⚠️ اخطار: {stats['warns']}\n"
-                f"👥 ورودی: {stats['joins']} | خروجی: {stats['lefts']}",
-                reply_markup=InlineKeyboardMarkup(keyboard))
+                f"👥 ورودی: {stats['joins']} | خروجی: {stats['lefts']}"
+            )
+            await query.edit_message_text(text_out, reply_markup=InlineKeyboardMarkup(keyboard))
+
+        elif data.startswith("contact_owner:"):
+            group_id = int(data.split(":")[1])
+            context.user_data['action'] = f'contact_owner:{group_id}'
+            await query.edit_message_text("📞 ارتباط با سازنده\n\nپیام یا فیش واریز خود را بفرستید:\n\nبرای لغو: /cancel")
+
+        elif data.startswith("admin:sendowner:"):
+            if not is_owner(user.id): return
+            group_id = int(data.split(":")[2])
+            g = db.get_group(group_id)
+            owner_id = g.get('owner_id') if g else None
+            if owner_id:
+                context.user_data['action'] = f'sendowner:{owner_id}:{group_id}'
+                await query.edit_message_text("📢 پیام خود را برای مدیر این گروه بنویسید:\n\nبرای لغو: /cancel")
+            else:
+                await query.edit_message_text("❌ اطلاعات مدیر یافت نشد.")
+
+        elif data.startswith("admin:setsub:"):
+            if not is_owner(user.id): return
+            group_id = int(data.split(":")[2])
+            keyboard = [
+                [InlineKeyboardButton("30 روز", callback_data=f"admin:sub:{group_id}:30"),
+                 InlineKeyboardButton("60 روز", callback_data=f"admin:sub:{group_id}:60")],
+                [InlineKeyboardButton("90 روز", callback_data=f"admin:sub:{group_id}:90"),
+                 InlineKeyboardButton("♾ دائم رایگان", callback_data=f"admin:sub:{group_id}:0")],
+                [InlineKeyboardButton("🔙 برگشت", callback_data=f"admin:grp:{group_id}")],
+            ]
+            await query.edit_message_text("⏱ مدت اشتراک را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(keyboard))
+
+        elif data.startswith("admin:sub:"):
+            if not is_owner(user.id): return
+            parts = data.split(":"); group_id = int(parts[2]); days = int(parts[3])
+            db.set_group_subscription(group_id, days)
+            if days > 0:
+                g = db.get_group(group_id)
+                owner_id = g.get('owner_id') if g else None
+                if owner_id:
+                    try:
+                        exp_date = (datetime.now() + timedelta(days=days)).strftime("%Y/%m/%d")
+                        await context.bot.send_message(owner_id,
+                            f"✅ اشتراک ربات هیوا برای گروه {g.get('group_name','')} فعال شد!\n📅 تاریخ انقضا: {exp_date}")
+                    except: pass
+                await query.edit_message_text(f"✅ اشتراک {days} روزه فعال شد.")
+            else:
+                await query.edit_message_text("✅ گروه رایگان و دائمی شد.")
 
         elif data.startswith("admin:act:"):
             if not is_owner(user.id): return
@@ -1014,6 +1101,23 @@ async def private_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.clear()
         await update.message.reply_text("✅ متن خوش‌آمد ذخیره شد.")
 
+    elif action.startswith('contactowner:'):
+        group_id = int(action.split(':')[1])
+        g = db.get_group(group_id)
+        group_name = g.get('group_name', 'نامشخص') if g else 'نامشخص'
+        try:
+            await context.bot.send_message(
+                config.ADMIN_ID,
+                f"📩 پیام از مدیر گروه\n\n"
+                f"👤 {get_name(user)} (@{user.username or '-'})\n"
+                f"🏠 گروه: {group_name}\n"
+                f"🆔 آیدی گروه: {group_id}\n\n"
+                f"💬 پیام:\n{text}")
+            await update.message.reply_text("✅ پیام شما به سازنده ارسال شد.")
+        except Exception as e:
+            await update.message.reply_text(f"❌ خطا: {e}")
+        context.user_data.clear()
+
     elif action.startswith('setlink:'):
         group_id = int(action.split(':')[1])
         db.update_group_field(group_id, 'group_link', text)
@@ -1037,6 +1141,34 @@ async def private_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db.add_bad_word(group_id, text.strip())
         context.user_data.clear()
         await update.message.reply_text(f"✅ کلمه «{text.strip()}» اضافه شد.")
+
+    elif action.startswith('contact_owner:'):
+        group_id = int(action.split(':')[1])
+        g = db.get_group(group_id)
+        name = g.get('group_name', 'نامشخص') if g else 'نامشخص'
+        try:
+            await context.bot.send_message(
+                config.ADMIN_ID,
+                f"📞 پیام از مدیر گروه {name} (گروه: {group_id}):\n\n{text}",
+            )
+            await update.message.reply_text("✅ پیام شما به سازنده ارسال شد.")
+        except Exception as e:
+            await update.message.reply_text(f"❌ خطا: {e}")
+        context.user_data.clear()
+
+    elif action.startswith('sendowner:'):
+        parts = action.split(':'); owner_id = int(parts[1]); group_id = int(parts[2])
+        g = db.get_group(group_id)
+        name = g.get('group_name', 'نامشخص') if g else 'نامشخص'
+        try:
+            await context.bot.send_message(
+                owner_id,
+                f"📢 پیام از سازنده ربات هیوا برای گروه {name}:\n\n{text}"
+            )
+            await update.message.reply_text("✅ پیام به مدیر گروه ارسال شد.")
+        except Exception as e:
+            await update.message.reply_text(f"❌ خطا در ارسال: {e}")
+        context.user_data.clear()
 
     elif action.startswith('searchuser:'):
         group_id = int(action.split(':')[1])
@@ -1177,6 +1309,10 @@ async def filter_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if not db.is_group_active(group_id): return
 
+    # اگه command بود رد کن
+    if msg.text and msg.text.startswith('/'):
+        return
+
     if await is_group_admin(context, group_id, user.id):
         await handle_public_commands(update, context)
         return
@@ -1271,6 +1407,8 @@ async def filter_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif msg.video_note and s.get('lock_video'): reason = t("lock_video", lang)
     elif msg.sticker and s.get('lock_sticker'): reason = t("lock_sticker", lang)
     elif msg.animation and s.get('lock_gif'): reason = t("lock_gif", lang)
+    elif msg.document and msg.document.mime_type and 'gif' in msg.document.mime_type.lower() and s.get('lock_gif'):
+        reason = t("lock_gif", lang)
     elif msg.voice and s.get('lock_voice'): reason = t("lock_voice", lang)
     elif msg.document and s.get('lock_file'): reason = t("lock_file", lang)
     elif msg.poll and s.get('lock_poll'): reason = t("lock_poll", lang)
@@ -1408,10 +1546,15 @@ def main():
     app.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND, private_message))
     app.add_handler(MessageHandler(filters.ChatType.GROUPS & filters.StatusUpdate.NEW_CHAT_MEMBERS, member_joined))
     app.add_handler(MessageHandler(filters.ChatType.GROUPS & filters.StatusUpdate.LEFT_CHAT_MEMBER, member_left))
-    app.add_handler(MessageHandler(filters.ChatType.GROUPS & ~filters.COMMAND & ~filters.StatusUpdate.ALL, filter_messages))
+    # handler اصلی گروه - همه پیام‌ها بجز StatusUpdate
+    app.add_handler(MessageHandler(
+        filters.ChatType.GROUPS & ~filters.StatusUpdate.ALL,
+        filter_messages
+    ))
 
     job_queue = app.job_queue
     job_queue.run_repeating(check_quiet_hours_job, interval=60, first=10)
+    job_queue.run_repeating(check_subscriptions_job, interval=86400, first=300)  # هر 24 ساعت
 
     print("🤖 ربات هیوا نسخه 6 آماده است...")
     app.run_polling(drop_pending_updates=True)
