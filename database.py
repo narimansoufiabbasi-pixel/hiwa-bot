@@ -50,6 +50,7 @@ def init_db():
             lock_text INTEGER DEFAULT 0,
             lock_bad_words INTEGER DEFAULT 0,
             lock_slash INTEGER DEFAULT 0,
+            lock_emoji INTEGER DEFAULT 0,
             public_commands INTEGER DEFAULT 1,
             group_locked INTEGER DEFAULT 0,
             welcome_enabled INTEGER DEFAULT 1,
@@ -576,3 +577,12 @@ def get_expiring_soon(days=3):
     """, (now, future)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+# Gemini
+def get_gemini_context(group_id):
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT role, content FROM message_activity WHERE group_id=? AND hour=-1 ORDER BY id DESC LIMIT 5",
+        (group_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in reversed(rows)]

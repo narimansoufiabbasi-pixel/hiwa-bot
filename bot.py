@@ -16,6 +16,39 @@ import database as db
 from jalali import jalali_str
 from languages import t
 
+
+import urllib.request
+import json as _json
+
+GEMINI_API_KEY = "AIzaSyDummy"  # سازنده باید در config.py تنظیم کنه
+
+async def ask_gemini(prompt, group_id=None):
+    """ارسال سوال به Gemini و دریافت پاسخ"""
+    api_key = getattr(config, 'GEMINI_API_KEY', '')
+    if not api_key:
+        return "❌ کلید API Gemini تنظیم نشده."
+    
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}"
+    
+    data = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"maxOutputTokens": 500}
+    }
+    
+    req = urllib.request.Request(
+        url,
+        data=_json.dumps(data).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST"
+    )
+    
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = _json.loads(resp.read())
+            return result["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception as e:
+        return f"❌ خطا در Gemini: {str(e)[:100]}"
+
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -170,6 +203,22 @@ async def show_group_menu(query, group_id):
     g = db.get_group(group_id)
     name = g.get('group_name','نامشخص') if g else 'نامشخص'
     s = db.get_settings(group_id)
+    # نمایش وضعیت اشتراک
+    sub = db.get_group_subscription(group_id)
+    if sub and sub.get('expiry_date'):
+        try:
+            from datetime import datetime
+            exp = datetime.strptime(sub['expiry_date'], "%Y-%m-%d %H:%M:%S")
+            days_left = (exp - datetime.now()).days
+            if days_left > 0:
+                sub_status = f"✅ اشتراک: {days_left} روز مانده"
+            else:
+                sub_status = "❌ اشتراک منقضی شده"
+        except:
+            sub_status = "✅ اشتراک فعال"
+    else:
+        sub_status = "🟢 رایگان (دائمی)"
+
     keyboard = [
         [InlineKeyboardButton("🔴🟢 قفل‌ها", callback_data=f"locks:{group_id}"),
          InlineKeyboardButton("🌙 خاموشی", callback_data=f"quiet:{group_id}")],
@@ -187,7 +236,9 @@ async def show_group_menu(query, group_id):
         [InlineKeyboardButton("📖 راهنما", callback_data=f"help:main:mygroups:0"),
          InlineKeyboardButton("🔙 برگشت", callback_data="mygroups")],
     ]
-    await query.edit_message_text(t("group_settings", name=name), reply_markup=InlineKeyboardMarkup(keyboard))
+    await query.edit_message_text(
+        f"{t('group_settings', name=name)}\n\n{sub_status}",
+        reply_markup=InlineKeyboardMarkup(keyboard))
 
 # ============================================
 # قفل‌ها
@@ -662,6 +713,27 @@ async def show_help(query, key, back_to, group_id=0):
 # ============================================
 # /start
 # ============================================
+
+async def cmd_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """سازنده با این دستور به مدیر گروه پاسخ میده: /reply_USER_ID متن پاسخ"""
+    if not is_owner(update.effective_user.id):
+        return
+    if update.effective_chat.type != 'private':
+        return
+    text = update.message.text
+    # فرمت: /reply_123456789 متن پاسخ
+    match = __import__('re').match(r'/reply_(\d+)\s+(.*)', text, __import__('re').DOTALL)
+    if not match:
+        await update.message.reply_text("فرمت اشتباه!\nمثال: /reply_123456789 متن پاسخ شما")
+        return
+    target_id = int(match.group(1))
+    reply_text = match.group(2)
+    try:
+        await context.bot.send_message(target_id, f"📩 پاسخ از سازنده ربات هیوا:\n\n{reply_text}")
+        await update.message.reply_text("✅ پاسخ ارسال شد.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ خطا: {e}")
+
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != 'private': return
@@ -1145,11 +1217,17 @@ async def private_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif action.startswith('contact_owner:'):
         group_id = int(action.split(':')[1])
         g = db.get_group(group_id)
-        name = g.get('group_name', 'نامشخص') if g else 'نامشخص'
+        group_name = g.get('group_name', 'نامشخص') if g else 'نامشخص'
+        owner_id = user.id
         try:
-            await context.bot.send_message(
+            # ارسال با اطلاعات برای امکان پاسخ
+            sent = await context.bot.send_message(
                 config.ADMIN_ID,
-                f"📞 پیام از مدیر گروه {name} (گروه: {group_id}):\n\n{text}",
+                f"📞 پیام از مدیر گروه\n"
+                f"👤 مدیر: {get_name(user)} (آیدی: {owner_id})\n"
+                f"🏠 گروه: {group_name} (آیدی: {group_id})\n\n"
+                f"💬 پیام:\n{text}\n\n"
+                f"📌 برای پاسخ به این مدیر: /reply_{owner_id} [متن پاسخ]"
             )
             await update.message.reply_text("✅ پیام شما به سازنده ارسال شد.")
         except Exception as e:
@@ -1504,6 +1582,15 @@ async def handle_public_commands(update: Update, context: ContextTypes.DEFAULT_T
     elif txt == "پیام من چرا حذف شد؟":
         r = db.get_last_delete_reason(group_id, user.id)
         await msg.reply_text(f"❌ دلیل: {r}" if r else "❓ یافت نشد.")
+    else:
+        # Gemini AI - اگه ربات منشن شده باشه
+        bot_username = (await context.bot.get_me()).username
+        if bot_username and f"@{bot_username}" in txt and s.get('gemini_enabled'):
+            question = txt.replace(f"@{bot_username}", "").strip()
+            if question:
+                await context.bot.send_chat_action(group_id, "typing")
+                answer = await ask_gemini(question, group_id)
+                await msg.reply_text(f"🤖 {answer}")
 
 # ============================================
 # اضافه شدن ربات به گروه
@@ -1541,6 +1628,10 @@ def main():
     db.init_db()
     app = Application.builder().token(config.BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", cmd_start))
+    app.add_handler(MessageHandler(
+        filters.ChatType.PRIVATE & filters.Regex(r'^/reply_\d+'),
+        cmd_reply
+    ))
     app.add_handler(ChatMemberHandler(bot_added_to_group, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND, private_message))
