@@ -973,6 +973,29 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(f"✅ اخطارهای کاربر {uid} ریست شد.")
 
         # پنل سازنده
+        elif data == "admin:subs":
+            if not is_owner(user.id): return
+            allg = db.get_all_groups()
+            keyboard = []
+            for g in allg[:20]:
+                sub = db.get_group_subscription(g['group_id'])
+                if sub and sub.get('expiry_date'):
+                    try:
+                        exp = datetime.strptime(sub['expiry_date'], "%Y-%m-%d %H:%M:%S")
+                        days_left = (exp - datetime.now()).days
+                        status = f"⏳ {days_left}روز" if days_left > 0 else "❌ منقضی"
+                    except:
+                        status = "✅"
+                else:
+                    status = "🆓 رایگان"
+                keyboard.append([InlineKeyboardButton(
+                    f"{status} | {g.get('group_name','نامشخص')}",
+                    callback_data=f"admin:grp:{g['group_id']}")])
+            keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data="admin:back")])
+            await query.edit_message_text(
+                "💰 مدیریت اشتراک‌ها\n\n📌 روی هر گروه بزنید تا اشتراک تنظیم کنید:",
+                reply_markup=InlineKeyboardMarkup(keyboard))
+
         elif data.startswith("admin:"):
             if not is_owner(user.id):
                 await query.answer("❌ دسترسی ندارید!", show_alert=True); return
@@ -1089,31 +1112,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.edit_message_text(f"✅ اشتراک {days} روزه فعال شد.")
             else:
                 await query.edit_message_text("✅ گروه رایگان و دائمی شد.")
-
-        elif data == "admin:subs":
-            if not is_owner(user.id): return
-            allg = db.get_all_groups()
-            text = "💰 مدیریت اشتراک‌ها\n\n"
-            keyboard = []
-            for g in allg[:20]:
-                sub = db.get_group_subscription(g['group_id'])
-                if sub and sub.get('expiry_date'):
-                    try:
-                        from datetime import datetime
-                        exp = datetime.strptime(sub['expiry_date'], "%Y-%m-%d %H:%M:%S")
-                        days_left = (exp - datetime.now()).days
-                        status = f"⏳ {days_left}روز" if days_left > 0 else "❌ منقضی"
-                    except:
-                        status = "✅"
-                else:
-                    status = "🆓 رایگان"
-                keyboard.append([InlineKeyboardButton(
-                    f"{status} | {g.get('group_name','نامشخص')}",
-                    callback_data=f"admin:grp:{g['group_id']}")])
-            keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data="admin:back")])
-            await query.edit_message_text(
-                "💰 مدیریت اشتراک‌ها\n\n📌 روی هر گروه بزنید تا اشتراک تنظیم کنید:",
-                reply_markup=InlineKeyboardMarkup(keyboard))
 
         elif data.startswith("admin:act:"):
             if not is_owner(user.id): return
