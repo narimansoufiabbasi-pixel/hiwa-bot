@@ -1024,7 +1024,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                  InlineKeyboardButton("👤 پیام به مدیر", callback_data=f"admin:sendowner:{group_id}")],
                 [InlineKeyboardButton("⏱ تنظیم اشتراک", callback_data=f"admin:setsub:{group_id}"),
                  InlineKeyboardButton("🚪 حذف ربات", callback_data=f"admin:leave:{group_id}")],
-                [InlineKeyboardButton("🔙 برگشت", callback_data="admin:list")]
+                [InlineKeyboardButton("🔙 برگشت", callback_data="admin:subs")]
             ]
             text_out = (
                 f"📌 {g.get('group_name','نامشخص')}\n"
@@ -1069,22 +1069,29 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if owner_id:
                     try:
                         exp_date = (datetime.now() + timedelta(days=days)).strftime("%Y/%m/%d")
+                        exp_shamsi = jalali_str(__import__('datetime').datetime.strptime(exp_date, "%Y-%m-%d %H:%M:%S"))
+                        exp_miladi = __import__('datetime').datetime.strptime(exp_date, "%Y-%m-%d %H:%M:%S").strftime("%Y/%m/%d")
                         await context.bot.send_message(owner_id,
-                            f"✅ اشتراک ربات هیوا برای گروه {g.get('group_name','')} فعال شد!\n📅 تاریخ انقضا: {exp_date}")
+                            f"✅ اشتراک ربات هیوا برای گروه {g.get('group_name','')} فعال شد!\n"
+                            f"📅 انقضا: {exp_shamsi} (شمسی) | {exp_miladi} (میلادی)")
                     except: pass
-                await query.edit_message_text(f"✅ اشتراک {days} روزه فعال شد.")
+                await query.edit_message_text(
+                    f"✅ اشتراک {days} روزه فعال شد.",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 برگشت", callback_data="admin:subs")]]))
             else:
-                await query.edit_message_text("✅ گروه رایگان و دائمی شد.")
+                await query.edit_message_text(
+                    "✅ گروه رایگان و دائمی شد.",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 برگشت", callback_data="admin:subs")]]))
 
         elif data.startswith("admin:act:"):
             if not is_owner(user.id): return
             db.activate_group_free(int(data.split(":")[2]))
-            await query.edit_message_text("✅ فعال شد.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 برگشت", callback_data="admin:list")]]))
+            await query.edit_message_text("✅ فعال شد.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 برگشت", callback_data="admin:subs")]]))
 
         elif data.startswith("admin:deact:"):
             if not is_owner(user.id): return
             db.deactivate_group(int(data.split(":")[2]))
-            await query.edit_message_text("❌ غیرفعال شد.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 برگشت", callback_data="admin:list")]]))
+            await query.edit_message_text("❌ غیرفعال شد.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 برگشت", callback_data="admin:subs")]]))
 
         elif data.startswith("admin:sendmsg:"):
             if not is_owner(user.id): return
