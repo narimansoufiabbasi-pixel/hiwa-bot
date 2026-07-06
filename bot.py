@@ -117,8 +117,8 @@ async def check_subscriptions_job(context: ContextTypes.DEFAULT_TYPE):
     expired = db.check_expired_subscriptions()
     for g in expired:
         try:
-            await context.bot.send_message(g['group_id'],
-                "⚠️ اشتراک ربات هیوا در این گروه منقضی شد. برای تمدید با سازنده تماس بگیرید.")
+            g_lang = db.get_settings(g['group_id']).get('lang', 'fa')
+            await context.bot.send_message(g['group_id'], t("sub_expired_msg", g_lang))
         except: pass
         try:
             await context.bot.send_message(g['owner_id'],
@@ -133,8 +133,8 @@ async def check_subscriptions_job(context: ContextTypes.DEFAULT_TYPE):
     expiring = db.get_expiring_soon(3)
     for g in expiring:
         try:
-            await context.bot.send_message(g['owner_id'],
-                f"⏰ اشتراک ربات در گروه {g['group_name']} تا 3 روز دیگر منقضی می‌شود. برای تمدید با سازنده تماس بگیرید.")
+            g_lang = db.get_settings(g['group_id']).get('lang', 'fa')
+            await context.bot.send_message(g['owner_id'], t("sub_expiring_soon", g_lang, name=g['group_name']))
         except: pass
 
 
@@ -160,7 +160,7 @@ async def check_quiet_hours_job(context: ContextTypes.DEFAULT_TYPE):
 # پنل کاربری
 # ============================================
 
-async def show_my_groups(target, context, user_id, edit=False):
+async def show_my_groups(target, context, user_id, edit=False, lang="fa"):
     all_groups = db.get_all_active_groups()
     user_groups = []
     for g in all_groups:
@@ -171,14 +171,15 @@ async def show_my_groups(target, context, user_id, edit=False):
         except: pass
 
     if not user_groups:
-        text = t("no_groups")
+        text = t("no_groups", lang)
         if edit: await target.edit_message_text(text)
         else: await target.reply_text(text)
         return
 
-    keyboard = [[InlineKeyboardButton(f"🏠 {g.get('group_name','نامشخص')}", callback_data=f"grp:{g['group_id']}")] for g in user_groups]
-    keyboard.append([InlineKeyboardButton("📖 راهنما", callback_data="help:main:mygroups:0")])
-    text = t("select_group")
+    keyboard = [[InlineKeyboardButton(f"🏠 {g.get('group_name','?')}", callback_data=f"grp:{g['group_id']}")] for g in user_groups]
+    keyboard.append([InlineKeyboardButton(t("menu_lang", lang), callback_data="changelang")])
+    keyboard.append([InlineKeyboardButton(t("menu_help", lang), callback_data="help:main:mygroups:0")])
+    text = t("select_group", lang)
     if edit: await target.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
     else: await target.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
@@ -188,8 +189,9 @@ async def show_my_groups(target, context, user_id, edit=False):
 
 async def show_group_menu(query, group_id):
     g = db.get_group(group_id)
-    name = g.get('group_name','نامشخص') if g else 'نامشخص'
+    name = g.get('group_name','?') if g else '?'
     s = db.get_settings(group_id)
+    lang = s.get('lang', 'fa')
     # نمایش وضعیت اشتراک
     sub = db.get_group_subscription(group_id)
     if sub and sub.get('expiry_date'):
@@ -207,24 +209,25 @@ async def show_group_menu(query, group_id):
         sub_status = "🟢 رایگان (دائمی)"
 
     keyboard = [
-        [InlineKeyboardButton("🔴🟢 قفل‌ها", callback_data=f"locks:{group_id}"),
-         InlineKeyboardButton("🌙 خاموشی", callback_data=f"quiet:{group_id}")],
-        [InlineKeyboardButton("👋 خوش‌آمد", callback_data=f"welcome:{group_id}"),
-         InlineKeyboardButton("🚪 پیام خروج", callback_data=f"goodbye:{group_id}")],
-        [InlineKeyboardButton("🛡 امنیت", callback_data=f"security:{group_id}"),
-         InlineKeyboardButton("⚠️ اخطار", callback_data=f"warn:{group_id}")],
-        [InlineKeyboardButton("📨 اد اجباری", callback_data=f"force:{group_id}"),
-         InlineKeyboardButton("✅ لیست سفید", callback_data=f"white:{group_id}")],
-        [InlineKeyboardButton("🚫 کلمات ممنوعه", callback_data=f"badwords:{group_id}"),
-         InlineKeyboardButton("📊 تابلو آمار", callback_data=f"dashboard:{group_id}")],
-        [InlineKeyboardButton("👥 مدیریت کاربران", callback_data=f"users:{group_id}"),
-         InlineKeyboardButton("⚙️ تنظیمات", callback_data=f"other:{group_id}")],
-        [InlineKeyboardButton("📞 ارتباط با سازنده", callback_data=f"contact_owner:{group_id}")],
-        [InlineKeyboardButton("📖 راهنما", callback_data=f"help:main:mygroups:0"),
-         InlineKeyboardButton("🔙 برگشت", callback_data="mygroups")],
+        [InlineKeyboardButton(t("menu_locks", lang), callback_data=f"locks:{group_id}"),
+         InlineKeyboardButton(t("menu_quiet", lang), callback_data=f"quiet:{group_id}")],
+        [InlineKeyboardButton(t("menu_welcome", lang), callback_data=f"welcome:{group_id}"),
+         InlineKeyboardButton(t("menu_goodbye", lang), callback_data=f"goodbye:{group_id}")],
+        [InlineKeyboardButton(t("menu_security", lang), callback_data=f"security:{group_id}"),
+         InlineKeyboardButton(t("menu_warn", lang), callback_data=f"warn:{group_id}")],
+        [InlineKeyboardButton(t("menu_force", lang), callback_data=f"force:{group_id}"),
+         InlineKeyboardButton(t("menu_white", lang), callback_data=f"white:{group_id}")],
+        [InlineKeyboardButton(t("menu_badwords", lang), callback_data=f"badwords:{group_id}"),
+         InlineKeyboardButton(t("menu_dashboard", lang), callback_data=f"dashboard:{group_id}")],
+        [InlineKeyboardButton(t("menu_users", lang), callback_data=f"users:{group_id}"),
+         InlineKeyboardButton(t("menu_settings", lang), callback_data=f"other:{group_id}")],
+        [InlineKeyboardButton(t("menu_contact", lang), callback_data=f"contact_owner:{group_id}")],
+        [InlineKeyboardButton(t("menu_lang", lang), callback_data="changelang"),
+         InlineKeyboardButton(t("menu_help", lang), callback_data=f"help:main:mygroups:0")],
+        [InlineKeyboardButton(t("back", lang), callback_data="mygroups")],
     ]
     await query.edit_message_text(
-        f"{t('group_settings', name=name)}\n\n{sub_status}",
+        f"{t('group_settings', lang, name=name)}\n\n{sub_status}",
         reply_markup=InlineKeyboardMarkup(keyboard))
 
 # ============================================
@@ -726,6 +729,18 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != 'private': return
     user = update.effective_user
 
+    # اگه کاربر هنوز زبان انتخاب نکرده
+    user_lang = context.user_data.get('lang')
+    if not user_lang and not is_owner(user.id):
+        keyboard = [
+            [InlineKeyboardButton("🇮🇷 فارسی", callback_data="setlang:fa"),
+             InlineKeyboardButton("🇬🇧 English", callback_data="setlang:en")],
+        ]
+        await update.message.reply_text(
+            t("select_lang"),
+            reply_markup=InlineKeyboardMarkup(keyboard))
+        return
+
     if is_owner(user.id):
         ag = db.get_all_active_groups(); allg = db.get_all_groups()
         keyboard = [
@@ -752,8 +767,53 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
 
     try:
-        if data == "mygroups":
-            await show_my_groups(query, context, user.id, edit=True)
+        if data.startswith("setlang:"):
+            lang = data.split(":")[1]
+            context.user_data['lang'] = lang
+            await query.edit_message_text(t("lang_saved", lang))
+            # ذخیره زبان برای همه گروه‌های این مدیر
+            all_groups = db.get_all_active_groups()
+            for g in all_groups:
+                try:
+                    member = await context.bot.get_chat_member(g['group_id'], user.id)
+                    if member.status in ['administrator', 'creator']:
+                        db.update_setting(g['group_id'], 'lang', lang)
+                except: pass
+            # بعد از انتخاب زبان، پنل اصلی رو نشون بده
+            await asyncio.sleep(1)
+            user = query.from_user
+            keyboard = []
+            all_groups = db.get_all_active_groups()
+            user_groups = []
+            for g in all_groups:
+                try:
+                    member = await context.bot.get_chat_member(g['group_id'], user.id)
+                    if member.status in ['administrator', 'creator']:
+                        user_groups.append(g)
+                except: pass
+            if not user_groups:
+                await context.bot.send_message(user.id, t("no_groups", lang))
+                return
+            for g in user_groups:
+                keyboard.append([InlineKeyboardButton(
+                    f"🏠 {g.get('group_name','?')}",
+                    callback_data=f"grp:{g['group_id']}")])
+            keyboard.append([InlineKeyboardButton(t("menu_lang", lang), callback_data="changelang")])
+            await context.bot.send_message(user.id, t("select_group", lang),
+                reply_markup=InlineKeyboardMarkup(keyboard))
+            return
+
+        elif data == "changelang":
+            keyboard = [
+                [InlineKeyboardButton("🇮🇷 فارسی", callback_data="setlang:fa"),
+                 InlineKeyboardButton("🇬🇧 English", callback_data="setlang:en")],
+            ]
+            await query.edit_message_text(t("select_lang"), reply_markup=InlineKeyboardMarkup(keyboard))
+            return
+
+        elif data == "mygroups":
+            lang = context.user_data.get('lang', 'fa')
+            await show_my_groups(query, context, user.id, edit=True, lang=lang)
         elif data.startswith("grp:"):
             await show_group_menu(query, int(data.split(":")[1]))
         elif data.startswith("locks:"):
@@ -1071,9 +1131,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         exp_date = (datetime.now() + timedelta(days=days)).strftime("%Y/%m/%d")
                         exp_shamsi = jalali_str(__import__('datetime').datetime.strptime(exp_date, "%Y-%m-%d %H:%M:%S"))
                         exp_miladi = __import__('datetime').datetime.strptime(exp_date, "%Y-%m-%d %H:%M:%S").strftime("%Y/%m/%d")
+                        g_lang = db.get_settings(group_id).get('lang', 'fa')
                         await context.bot.send_message(owner_id,
-                            f"✅ اشتراک ربات هیوا برای گروه {g.get('group_name','')} فعال شد!\n"
-                            f"📅 انقضا: {exp_shamsi} (شمسی) | {exp_miladi} (میلادی)")
+                            t("sub_activated", g_lang, days=days, shamsi=exp_shamsi, miladi=exp_miladi))
                     except: pass
                 await query.edit_message_text(
                     f"✅ اشتراک {days} روزه فعال شد.",
@@ -1588,41 +1648,52 @@ async def handle_public_commands(update: Update, context: ContextTypes.DEFAULT_T
     msg = update.message; txt = msg.text.strip()
     group_id = update.effective_chat.id; user = update.effective_user
     s = db.get_settings(group_id)
+    lang = s.get('lang', 'fa')
     if not s.get('public_commands', 1): return
 
-    if txt == "لینک گروه را بفرست":
+    # دستورات هر دو زبان پشتیبانی میشه
+    cmd_link = [t("cmd_link", "fa"), t("cmd_link", "en")]
+    cmd_info = [t("cmd_info", "fa"), t("cmd_info", "en")]
+    cmd_rules = [t("cmd_rules", "fa"), t("cmd_rules", "en")]
+    cmd_who = [t("cmd_who_invited", "fa"), t("cmd_who_invited", "en")]
+    cmd_count = [t("cmd_invite_count", "fa"), t("cmd_invite_count", "en")]
+    cmd_myinfo = [t("cmd_my_info", "fa"), t("cmd_my_info", "en")]
+    cmd_report = [t("cmd_report", "fa"), t("cmd_report", "en")]
+    cmd_why = [t("cmd_why_deleted", "fa"), t("cmd_why_deleted", "en")]
+
+    if txt.lower() in cmd_link:
         g = db.get_group(group_id)
         link = g.get('group_link') if g else None
-        await msg.reply_text(f"🔗 {link}" if link else "❌ لینک تنظیم نشده.")
-    elif txt == "این گروه برای چیه؟":
+        await msg.reply_text(f"🔗 {link}" if link else t("no_link", lang))
+    elif txt.lower() in cmd_info:
         g = db.get_group(group_id)
         info = g.get('group_info') if g else None
-        await msg.reply_text(info if info else "❌ توضیحات تنظیم نشده.")
-    elif txt == "قوانین":
+        await msg.reply_text(info if info else t("no_info", lang))
+    elif txt.lower() in cmd_rules:
         g = db.get_group(group_id)
         rules = g.get('group_rules') if g else None
-        await msg.reply_text(f"📜 قوانین:\n\n{rules}" if rules else "❌ قوانین تنظیم نشده.")
-    elif txt == "من را کی اد کرده است؟":
+        await msg.reply_text(t("rules_title", lang, rules=rules) if rules else t("no_rules", lang))
+    elif txt.lower() in cmd_who:
         inv = db.get_who_invited(group_id, user.id)
-        await msg.reply_text(f"👤 توسط {inv} اضافه شدید." if inv else "❓ یافت نشد.")
-    elif txt == "من چند نفر اد کردم؟":
+        await msg.reply_text(t("who_invited", lang, name=inv) if inv else t("not_found", lang))
+    elif txt.lower() in cmd_count:
         c = db.get_user_invite_count(group_id, user.id)
-        await msg.reply_text(f"📊 شما {c} نفر را اضافه کرده‌اید.")
-    elif txt == "اطلاعات من":
+        await msg.reply_text(t("invite_count", lang, count=c))
+    elif txt.lower() in cmd_myinfo:
         c = db.get_user_invite_count(group_id, user.id)
         w = db.get_warnings(group_id, user.id)
         inv = db.get_who_invited(group_id, user.id)
-        await msg.reply_text(f"👤 {get_name(user)}\n📨 اد: {c}\n⚠️ اخطار: {w}\n👥 توسط: {inv or 'نامشخص'}")
-    elif txt == "گزارش" and msg.reply_to_message:
+        await msg.reply_text(t("my_info", lang, name=get_name(user), invites=c, warns=w, invited_by=inv or t("unknown", lang)))
+    elif txt.lower() in cmd_report and msg.reply_to_message:
         rm = msg.reply_to_message
         await context.bot.send_message(config.ADMIN_ID,
-            f"🚨 گزارش از {get_name(user)} در {update.effective_chat.title}:\n\n{rm.text or '[غیر متنی]'}")
-        await msg.reply_text("✅ گزارش ارسال شد.")
-    elif txt == "پیام من چرا حذف شد؟":
+            f"🚨 Report from {get_name(user)} in {update.effective_chat.title}:\n\n{rm.text or '[non-text]'}")
+        await msg.reply_text(t("report_sent", lang))
+    elif txt.lower() in cmd_why:
         r = db.get_last_delete_reason(group_id, user.id)
-        await msg.reply_text(f"❌ دلیل: {r}" if r else "❓ یافت نشد.")
+        await msg.reply_text(t("why_deleted", lang, reason=r) if r else t("not_found", lang))
     else:
-        # Gemini AI - اگه ربات منشن شده باشه
+        # Gemini AI
         bot_username = (await context.bot.get_me()).username
         if bot_username and f"@{bot_username}" in txt and s.get('gemini_enabled'):
             question = txt.replace(f"@{bot_username}", "").strip()
@@ -1645,7 +1716,7 @@ async def bot_added_to_group(update: Update, context: ContextTypes.DEFAULT_TYPE)
         db.activate_group_free(chat.id)
         try:
             await context.bot.send_message(chat.id,
-                f"✅ ربات هیوا فعال شد!\n\n📌 برای تنظیمات، در پیوی ربات /start بزنید.")
+    t("bot_added", "fa") + "\n" + t("bot_added", "en"))
         except: pass
         try:
             await context.bot.send_message(config.ADMIN_ID,
