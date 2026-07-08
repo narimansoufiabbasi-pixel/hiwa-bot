@@ -237,30 +237,31 @@ async def show_group_menu(query, group_id):
 async def show_locks(query, group_id):
     s = db.get_settings(group_id)
     g = db.get_group(group_id)
-    name = g.get('group_name','نامشخص') if g else 'نامشخص'
+    name = g.get('group_name','?') if g else '?'
+    lang = s.get('lang', 'fa')
 
-    def btn(label, key):
+    def btn(label_key, key):
         v = s.get(key, 0)
-        ico = "🔴 قفل" if v else "🟢 آزاد"
+        ico = t("locked", lang) if v else t("unlocked", lang)
         nv = 0 if v else 1
-        return InlineKeyboardButton(f"{ico} | {label}", callback_data=f"tog:{group_id}:{key}:{nv}")
+        return InlineKeyboardButton(f"{ico} | {t(label_key, lang)}", callback_data=f"tog:{group_id}:{key}:{nv}")
 
     keyboard = [
-        [btn("لینک تلگرام", "lock_link"), btn("لینک سایت", "lock_site")],
-        [btn("آیدی/منشن", "lock_id"), btn("هشتگ", "lock_hashtag")],
-        [btn("عکس", "lock_photo"), btn("فیلم+سلفی", "lock_video")],
-        [btn("استیکر", "lock_sticker"), btn("گیف", "lock_gif")],
-        [btn("صدا", "lock_voice"), btn("فایل", "lock_file")],
-        [btn("نظرسنجی", "lock_poll"), btn("لوکیشن", "lock_location")],
-        [btn("شماره تلفن", "lock_phone"), btn("متن", "lock_text")],
-        [btn("فوروارد کانال", "lock_forward_channel"), btn("فوروارد گروه", "lock_forward_group")],
-        [btn("فوروارد کاربر", "lock_forward_user"), btn("کلمات ممنوعه", "lock_bad_words")],
-        [btn("اسلش", "lock_slash"), btn("دستورات عمومی", "public_commands")],
-        [btn("😀 ایموجی", "lock_emoji"), btn("🔒 قفل کامل گروه", "group_locked")],
-        [InlineKeyboardButton("🔙 برگشت", callback_data=f"grp:{group_id}")],
+        [btn("lock_telegram_link", "lock_link"), btn("lock_website", "lock_site")],
+        [btn("lock_username", "lock_id"), btn("lock_hashtag_lbl", "lock_hashtag")],
+        [btn("lock_photo_lbl", "lock_photo"), btn("lock_video_lbl", "lock_video")],
+        [btn("lock_sticker_lbl", "lock_sticker"), btn("lock_gif_lbl", "lock_gif")],
+        [btn("lock_voice_lbl", "lock_voice"), btn("lock_file_lbl", "lock_file")],
+        [btn("lock_poll_lbl", "lock_poll"), btn("lock_location_lbl", "lock_location")],
+        [btn("lock_phone_lbl", "lock_phone"), btn("lock_text_lbl", "lock_text")],
+        [btn("lock_fwd_channel", "lock_forward_channel"), btn("lock_fwd_group", "lock_forward_group")],
+        [btn("lock_fwd_user", "lock_forward_user"), btn("lock_badwords_lbl", "lock_bad_words")],
+        [btn("lock_slash_lbl", "lock_slash"), btn("lock_pub_cmds", "public_commands")],
+        [btn("lock_emoji_lbl", "lock_emoji"), btn("lock_full", "group_locked")],
+        [InlineKeyboardButton(t("back", lang), callback_data=f"grp:{group_id}")],
     ]
     await query.edit_message_text(
-        f"🔴🟢 قفل‌های گروه «{name}»\n\n🔴 قفل = فعال | 🟢 آزاد = غیرفعال",
+        t("locks_title", lang, name=name),
         reply_markup=InlineKeyboardMarkup(keyboard))
 
 # ============================================
