@@ -270,23 +270,24 @@ async def show_locks(query, group_id):
 async def show_quiet(query, group_id):
     s = db.get_settings(group_id)
     g = db.get_group(group_id)
-    name = g.get('group_name','نامشخص') if g else 'نامشخص'
-    text = f"🌙 ساعت خاموشی «{name}»\n\n📌 در ساعت خاموشی پیام اعضا حذف می‌شود\n\n"
+    name = g.get('group_name','?') if g else '?'
+    lang = s.get('lang', 'fa')
+    text = t("quiet_title", lang, name=name)
     keyboard = []
     for i in range(1, 4):
         f = s.get(f'quiet_{i}_from'); tt = s.get(f'quiet_{i}_to')
         state = s.get(f'quiet_{i}_state', 0)
         if f and tt:
-            status = "🔴 فعال" if state else "🟢 غیرفعال"
-            text += f"خاموشی {i}: {f} تا {tt} — {status}\n"
+            status = t("quiet_active", lang) if state else t("quiet_inactive", lang)
+            text += t("quiet_set", lang, num=i, from_t=f, to_t=tt) + f" — {status}\n"
             keyboard.append([
-                InlineKeyboardButton(f"✏️ ویرایش خاموشی {i}", callback_data=f"editquiet:{group_id}:{i}"),
-                InlineKeyboardButton(f"🗑 حذف خاموشی {i}", callback_data=f"delquiet:{group_id}:{i}"),
+                InlineKeyboardButton(t("quiet_edit", lang, num=i), callback_data=f"editquiet:{group_id}:{i}"),
+                InlineKeyboardButton(t("quiet_del", lang, num=i), callback_data=f"delquiet:{group_id}:{i}"),
             ])
         else:
-            text += f"خاموشی {i}: تنظیم نشده ❌\n"
-            keyboard.append([InlineKeyboardButton(f"➕ تنظیم خاموشی {i}", callback_data=f"setquiet:{group_id}:{i}")])
-    keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data=f"grp:{group_id}")])
+            text += t("quiet_not_set", lang, num=i) + "\n"
+            keyboard.append([InlineKeyboardButton(t("quiet_add", lang, num=i), callback_data=f"setquiet:{group_id}:{i}")])
+    keyboard.append([InlineKeyboardButton(t("back", lang), callback_data=f"grp:{group_id}")])
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_quiet_from_picker(query, group_id, num):
@@ -318,42 +319,44 @@ async def show_quiet_to_picker(query, group_id, num, from_t):
 async def show_welcome(query, group_id):
     s = db.get_settings(group_id)
     g = db.get_group(group_id)
-    name = g.get('group_name','نامشخص') if g else 'نامشخص'
+    name = g.get('group_name','?') if g else '?'
+    lang = s.get('lang', 'fa')
     we = s.get('welcome_enabled', 1); wb = s.get('welcome_button', 0)
-    wt = s.get('welcome_text', '') or 'پیش‌فرض (👋 {name} به گروه خوش آمدید!)'
+    wt = s.get('welcome_text', '') or t("welcome", lang, name="{name}")
 
-    def tbtn(label, key, val):
-        ico = "🟢 فعال" if val else "🔴 غیرفعال"
+    def tbtn(label_key, key, val):
+        ico = t("enabled", lang) if val else t("disabled", lang)
         nv = 0 if val else 1
-        return InlineKeyboardButton(f"{ico} | {label}", callback_data=f"tog:{group_id}:{key}:{nv}")
+        return InlineKeyboardButton(f"{ico} | {t(label_key, lang)}", callback_data=f"tog:{group_id}:{key}:{nv}")
 
     keyboard = [
-        [tbtn("پیام خوش‌آمد", "welcome_enabled", we)],
-        [tbtn("دکمه 'قوانین را خواندم'", "welcome_button", wb)],
-        [InlineKeyboardButton("✏️ تغییر متن", callback_data=f"setwelcome:{group_id}")],
-        [InlineKeyboardButton("🔙 برگشت", callback_data=f"grp:{group_id}")],
+        [tbtn("welcome_enabled_lbl", "welcome_enabled", we)],
+        [tbtn("welcome_button_lbl", "welcome_button", wb)],
+        [InlineKeyboardButton(t("welcome_edit", lang), callback_data=f"setwelcome:{group_id}")],
+        [InlineKeyboardButton(t("back", lang), callback_data=f"grp:{group_id}")],
     ]
     await query.edit_message_text(
-        f"👋 پیام خوش‌آمد «{name}»\n\nمتن فعلی:\n{wt[:100]}\n\n📌 متغیرها: {{name}} = نام کاربر، {{group}} = نام گروه",
+        t("welcome_title", lang, name=name, text=wt[:80]),
         reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_goodbye(query, group_id):
     s = db.get_settings(group_id)
     g = db.get_group(group_id)
-    name = g.get('group_name','نامشخص') if g else 'نامشخص'
+    name = g.get('group_name','?') if g else '?'
+    lang = s.get('lang', 'fa')
     ge = s.get('goodbye_enabled', 0)
 
-    def tbtn(label, key, val):
-        ico = "🟢 فعال" if val else "🔴 غیرفعال"
+    def tbtn(label_key, key, val):
+        ico = t("enabled", lang) if val else t("disabled", lang)
         nv = 0 if val else 1
-        return InlineKeyboardButton(f"{ico} | {label}", callback_data=f"tog:{group_id}:{key}:{nv}")
+        return InlineKeyboardButton(f"{ico} | {t(label_key, lang)}", callback_data=f"tog:{group_id}:{key}:{nv}")
 
     keyboard = [
-        [tbtn("اطلاع‌رسانی خروج اعضا", "goodbye_enabled", ge)],
-        [InlineKeyboardButton("🔙 برگشت", callback_data=f"grp:{group_id}")],
+        [tbtn("goodbye_enabled_lbl", "goodbye_enabled", ge)],
+        [InlineKeyboardButton(t("back", lang), callback_data=f"grp:{group_id}")],
     ]
     await query.edit_message_text(
-        f"🚪 اطلاع خروج اعضا «{name}»\n\n📌 وقتی فعال باشد با خروج هر عضو، ربات اطلاع می‌دهد",
+        t("goodbye_title", lang, name=name),
         reply_markup=InlineKeyboardMarkup(keyboard))
 
 # ============================================
@@ -363,30 +366,25 @@ async def show_goodbye(query, group_id):
 async def show_security(query, group_id):
     s = db.get_settings(group_id)
     g = db.get_group(group_id)
-    name = g.get('group_name','نامشخص') if g else 'نامشخص'
+    name = g.get('group_name','?') if g else '?'
+    lang = s.get('lang', 'fa')
 
-    def tbtn(label, key, desc):
+    def tbtn(label_key, key):
         v = s.get(key, 0)
-        ico = "🟢 فعال" if v else "🔴 غیرفعال"
+        ico = t("enabled", lang) if v else t("disabled", lang)
         nv = 0 if v else 1
-        return InlineKeyboardButton(f"{ico} | {label}", callback_data=f"tog:{group_id}:{key}:{nv}")
+        return InlineKeyboardButton(f"{ico} | {t(label_key, lang)}", callback_data=f"tog:{group_id}:{key}:{nv}")
 
     keyboard = [
-        [tbtn("🤖 کپچا ورود", "captcha_enabled", "")],
-        [tbtn("🚫 ضد اسپم", "anti_spam", "")],
-        [tbtn("⚡ ضد فلود", "anti_flood", "")],
-        [tbtn("🛡 ضد ریود", "anti_raid", "")],
-        [tbtn("🔍 تشخیص ربات مزاحم", "bot_detection", "")],
-        [InlineKeyboardButton("📖 راهنما", callback_data=f"help:security:security:{group_id}")],
-        [InlineKeyboardButton("🔙 برگشت", callback_data=f"grp:{group_id}")],
+        [tbtn("security_captcha", "captcha_enabled")],
+        [tbtn("security_antispam", "anti_spam")],
+        [tbtn("security_antiflood", "anti_flood")],
+        [tbtn("security_antiraid", "anti_raid")],
+        [tbtn("security_botdetect", "bot_detection")],
+        [InlineKeyboardButton(t("security_help", lang), callback_data=f"help:security:security:{group_id}")],
+        [InlineKeyboardButton(t("back", lang), callback_data=f"grp:{group_id}")],
     ]
-    await query.edit_message_text(
-        f"🛡 امنیت «{name}»\n\n"
-        "🤖 کپچا: عضو جدید باید دکمه بزند\n"
-        "🚫 ضد اسپم: پیام فوروارد حذف می‌شود\n"
-        "⚡ ضد فلود: پیام سریع = سکوت موقت\n"
-        "🔍 تشخیص ربات: اکانت مشکوک بلاک می‌شود",
-        reply_markup=InlineKeyboardMarkup(keyboard))
+    await query.edit_message_text(t("security_title", lang, name=name), reply_markup=InlineKeyboardMarkup(keyboard))
 
 # ============================================
 # اخطار
@@ -395,41 +393,42 @@ async def show_security(query, group_id):
 async def show_warn(query, group_id):
     s = db.get_settings(group_id)
     g = db.get_group(group_id)
-    name = g.get('group_name','نامشخص') if g else 'نامشخص'
+    name = g.get('group_name','?') if g else '?'
+    lang = s.get('lang', 'fa')
     auto = s.get('auto_warn', 0); limit = s.get('warn_limit', 3); action = s.get('warn_action', 'kick')
-    action_fa = {'kick': 'اخراج موقت', 'ban': 'بن دائم', 'mute': 'ساکت'}.get(action, action)
+    action_lbl = t(f"warn_action_{action}", lang)
 
     keyboard = [
         [InlineKeyboardButton(
-            f"{'🟢 فعال' if auto else '🔴 غیرفعال'} | اخطار خودکار",
+            f"{t('enabled',lang) if auto else t('disabled',lang)} | {t('warn_auto',lang)}",
             callback_data=f"tog:{group_id}:auto_warn:{0 if auto else 1}")],
-        [InlineKeyboardButton(f"⚠️ حد اخطار: {limit} بار", callback_data=f"warnlimit:{group_id}")],
-        [InlineKeyboardButton(f"🎯 اقدام: {action_fa}", callback_data=f"warnaction:{group_id}")],
-        [InlineKeyboardButton("📖 راهنما", callback_data=f"help:warn:warn:{group_id}")],
-        [InlineKeyboardButton("🔙 برگشت", callback_data=f"grp:{group_id}")],
+        [InlineKeyboardButton(t("warn_limit_lbl", lang, limit=limit), callback_data=f"warnlimit:{group_id}")],
+        [InlineKeyboardButton(t("warn_action_lbl", lang, action=action_lbl), callback_data=f"warnaction:{group_id}")],
+        [InlineKeyboardButton(t("menu_help", lang), callback_data=f"help:warn:warn:{group_id}")],
+        [InlineKeyboardButton(t("back", lang), callback_data=f"grp:{group_id}")],
     ]
-    await query.edit_message_text(
-        f"⚠️ اخطار «{name}»\n\n📌 بعد از رسیدن به حد اخطار، کاربر مجازات می‌شود",
-        reply_markup=InlineKeyboardMarkup(keyboard))
+    await query.edit_message_text(t("warn_title", lang, name=name), reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_warn_limit_picker(query, group_id):
+    s = db.get_settings(group_id); lang = s.get('lang','fa')
     keyboard = []
     row = []
     for n in [1,2,3,4,5,6,7,8,9,10]:
         row.append(InlineKeyboardButton(str(n), callback_data=f"setwarnlimit:{group_id}:{n}"))
         if len(row) == 5: keyboard.append(row); row = []
     if row: keyboard.append(row)
-    keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data=f"warn:{group_id}")])
-    await query.edit_message_text("⚠️ تعداد اخطار مجاز را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(keyboard))
+    keyboard.append([InlineKeyboardButton(t("back",lang), callback_data=f"warn:{group_id}")])
+    await query.edit_message_text(t("warn_pick_limit",lang), reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_warn_action_picker(query, group_id):
+    s = db.get_settings(group_id); lang = s.get('lang','fa')
     keyboard = [
-        [InlineKeyboardButton("🚫 اخراج موقت", callback_data=f"setwarnaction:{group_id}:kick")],
-        [InlineKeyboardButton("⛔ بن دائم", callback_data=f"setwarnaction:{group_id}:ban")],
-        [InlineKeyboardButton("🔇 ساکت کردن", callback_data=f"setwarnaction:{group_id}:mute")],
-        [InlineKeyboardButton("🔙 برگشت", callback_data=f"warn:{group_id}")],
+        [InlineKeyboardButton(f"🚫 {t('warn_action_kick',lang)}", callback_data=f"setwarnaction:{group_id}:kick")],
+        [InlineKeyboardButton(f"⛔ {t('warn_action_ban',lang)}", callback_data=f"setwarnaction:{group_id}:ban")],
+        [InlineKeyboardButton(f"🔇 {t('warn_action_mute',lang)}", callback_data=f"setwarnaction:{group_id}:mute")],
+        [InlineKeyboardButton(t("back",lang), callback_data=f"warn:{group_id}")],
     ]
-    await query.edit_message_text("🎯 اقدام بعد از رسیدن به حد اخطار:", reply_markup=InlineKeyboardMarkup(keyboard))
+    await query.edit_message_text(t("warn_pick_action",lang), reply_markup=InlineKeyboardMarkup(keyboard))
 
 # ============================================
 # اد اجباری
@@ -438,58 +437,60 @@ async def show_warn_action_picker(query, group_id):
 async def show_force(query, group_id):
     s = db.get_settings(group_id)
     g = db.get_group(group_id)
-    name = g.get('group_name','نامشخص') if g else 'نامشخص'
+    name = g.get('group_name','?') if g else '?'
+    lang = s.get('lang','fa')
     fi = s.get('force_invite', 0); count = s.get('force_invite_count', 5); days = s.get('force_invite_days', 0)
-    days_text = f"{days} روز" if days > 0 else "دائمی"
+    days_text = f"{days}" if days > 0 else t("force_days_permanent", lang)
 
     keyboard = [
         [InlineKeyboardButton(
-            f"{'🟢 فعال' if fi else '🔴 غیرفعال'} | اد اجباری",
+            f"{t('enabled',lang) if fi else t('disabled',lang)} | {t('force_enabled_lbl',lang)}",
             callback_data=f"tog:{group_id}:force_invite:{0 if fi else 1}")],
-        [InlineKeyboardButton(f"👥 تعداد اد: {count} نفر", callback_data=f"forcecount:{group_id}")],
-        [InlineKeyboardButton(f"⏱ مدت: {days_text}", callback_data=f"forcedays:{group_id}")],
-        [InlineKeyboardButton("📖 راهنما", callback_data=f"help:force:force:{group_id}")],
-        [InlineKeyboardButton("🔙 برگشت", callback_data=f"grp:{group_id}")],
+        [InlineKeyboardButton(t("force_count_lbl",lang,count=count), callback_data=f"forcecount:{group_id}")],
+        [InlineKeyboardButton(t("force_days_lbl",lang,days=days_text), callback_data=f"forcedays:{group_id}")],
+        [InlineKeyboardButton(t("menu_help",lang), callback_data=f"help:force:force:{group_id}")],
+        [InlineKeyboardButton(t("back",lang), callback_data=f"grp:{group_id}")],
     ]
-    await query.edit_message_text(
-        f"📨 اد اجباری «{name}»\n\n📌 اعضا باید تعداد مشخصی نفر اد کنند",
-        reply_markup=InlineKeyboardMarkup(keyboard))
+    await query.edit_message_text(t("force_title",lang,name=name), reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_force_count_picker(query, group_id):
+    s = db.get_settings(group_id); lang = s.get('lang','fa')
     keyboard = []
     row = []
     for n in [1,2,3,5,7,10,15,20,30,40,50,100]:
         row.append(InlineKeyboardButton(str(n), callback_data=f"setforcecount:{group_id}:{n}"))
         if len(row) == 4: keyboard.append(row); row = []
     if row: keyboard.append(row)
-    keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data=f"force:{group_id}")])
-    await query.edit_message_text("👥 تعداد اد لازم را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(keyboard))
+    keyboard.append([InlineKeyboardButton(t("back",lang), callback_data=f"force:{group_id}")])
+    await query.edit_message_text(t("force_pick_count",lang), reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_force_days_picker(query, group_id):
+    s = db.get_settings(group_id); lang = s.get('lang','fa')
     keyboard = [
-        [InlineKeyboardButton("30 روز", callback_data=f"setforcedays:{group_id}:30"),
-         InlineKeyboardButton("60 روز", callback_data=f"setforcedays:{group_id}:60")],
-        [InlineKeyboardButton("90 روز", callback_data=f"setforcedays:{group_id}:90"),
-         InlineKeyboardButton("♾ دائم", callback_data=f"setforcedays:{group_id}:0")],
-        [InlineKeyboardButton("🔙 برگشت", callback_data=f"force:{group_id}")],
+        [InlineKeyboardButton("30", callback_data=f"setforcedays:{group_id}:30"),
+         InlineKeyboardButton("60", callback_data=f"setforcedays:{group_id}:60")],
+        [InlineKeyboardButton("90", callback_data=f"setforcedays:{group_id}:90"),
+         InlineKeyboardButton(f"♾ {t('force_days_permanent',lang)}", callback_data=f"setforcedays:{group_id}:0")],
+        [InlineKeyboardButton(t("back",lang), callback_data=f"force:{group_id}")],
     ]
-    await query.edit_message_text("⏱ مدت اعتبار اد را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(keyboard))
+    await query.edit_message_text(t("force_pick_days",lang), reply_markup=InlineKeyboardMarkup(keyboard))
 
 # ============================================
 # لیست سفید
 # ============================================
 
 async def show_whitelist(query, group_id):
+    s = db.get_settings(group_id); lang = s.get('lang','fa')
     g = db.get_group(group_id)
-    name = g.get('group_name','نامشخص') if g else 'نامشخص'
+    name = g.get('group_name','?') if g else '?'
     wl = db.get_whitelist(group_id)
-    text = f"✅ لیست سفید «{name}»\n\n📌 از اد اجباری معاف هستند\n\n"
+    text = t("white_title", lang, name=name)
     if wl:
-        text += f"اعضای معاف ({len(wl)}):\n"
-        for w in wl[:10]: text += f"• {w.get('user_name','نامشخص')}\n"
-    else: text += "❌ لیست خالی\n"
-    text += "\n📝 معاف کردن: !معاف (ریپلای)\nحذف: !حذف معاف (ریپلای)"
-    keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data=f"grp:{group_id}")]]
+        text += t("white_list", lang, count=len(wl))
+        for w in wl[:10]: text += f"• {w.get('user_name','?')}\n"
+    else: text += t("white_empty", lang)
+    text += t("white_help", lang)
+    keyboard = [[InlineKeyboardButton(t("back",lang), callback_data=f"grp:{group_id}")]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 # ============================================
@@ -497,20 +498,21 @@ async def show_whitelist(query, group_id):
 # ============================================
 
 async def show_badwords(query, group_id):
+    s = db.get_settings(group_id); lang = s.get('lang','fa')
     g = db.get_group(group_id)
-    name = g.get('group_name','نامشخص') if g else 'نامشخص'
+    name = g.get('group_name','?') if g else '?'
     words = db.get_bad_words(group_id)
-    text = f"🚫 کلمات ممنوعه «{name}»\n\n📌 پیام‌های حاوی این کلمات حذف می‌شوند\n\n"
+    text = t("badwords_title", lang, name=name)
     if words:
-        text += f"کلمات ({len(words)}):\n"
+        text += t("badwords_list", lang, count=len(words))
         for i, w in enumerate(words[:20]): text += f"{i+1}. {w}\n"
-    else: text += "❌ هیچ کلمه‌ای ثبت نشده\n"
+    else: text += t("badwords_empty", lang)
     keyboard = [
-        [InlineKeyboardButton("➕ اضافه کردن کلمه", callback_data=f"addbadword:{group_id}")],
+        [InlineKeyboardButton(t("badwords_add",lang), callback_data=f"addbadword:{group_id}")],
     ]
     if words:
-        keyboard.append([InlineKeyboardButton("🗑 حذف کلمه", callback_data=f"delbadword:{group_id}")])
-    keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data=f"grp:{group_id}")])
+        keyboard.append([InlineKeyboardButton(t("badwords_del",lang), callback_data=f"delbadword:{group_id}")])
+    keyboard.append([InlineKeyboardButton(t("back",lang), callback_data=f"grp:{group_id}")])
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_del_badword(query, group_id):
@@ -669,16 +671,17 @@ async def show_other(query, group_id):
     await query.edit_message_text(f"⚙️ تنظیمات «{name}»", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_delsec_picker(query, group_id):
+    s = db.get_settings(group_id); lang = s.get('lang','fa')
     keyboard = [
-        [InlineKeyboardButton("5 ثانیه", callback_data=f"setdelsec:{group_id}:5"),
-         InlineKeyboardButton("10 ثانیه", callback_data=f"setdelsec:{group_id}:10")],
-        [InlineKeyboardButton("30 ثانیه", callback_data=f"setdelsec:{group_id}:30"),
-         InlineKeyboardButton("1 دقیقه", callback_data=f"setdelsec:{group_id}:60")],
-        [InlineKeyboardButton("2 دقیقه", callback_data=f"setdelsec:{group_id}:120"),
-         InlineKeyboardButton("5 دقیقه", callback_data=f"setdelsec:{group_id}:300")],
-        [InlineKeyboardButton("🔙 برگشت", callback_data=f"other:{group_id}")],
+        [InlineKeyboardButton("5s", callback_data=f"setdelsec:{group_id}:5"),
+         InlineKeyboardButton("10s", callback_data=f"setdelsec:{group_id}:10")],
+        [InlineKeyboardButton("30s", callback_data=f"setdelsec:{group_id}:30"),
+         InlineKeyboardButton("1m", callback_data=f"setdelsec:{group_id}:60")],
+        [InlineKeyboardButton("2m", callback_data=f"setdelsec:{group_id}:120"),
+         InlineKeyboardButton("5m", callback_data=f"setdelsec:{group_id}:300")],
+        [InlineKeyboardButton(t("back",lang), callback_data=f"other:{group_id}")],
     ]
-    await query.edit_message_text("⏱ زمان حذف پیام ربات را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(keyboard))
+    await query.edit_message_text(t("other_pick_delsec",lang), reply_markup=InlineKeyboardMarkup(keyboard))
 
 # ============================================
 # راهنما
@@ -888,7 +891,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif data.startswith("addbadword:"):
             group_id = int(data.split(":")[1])
             context.user_data['action'] = f'addbadword:{group_id}'
-            await query.edit_message_text("✏️ کلمه ممنوعه را بنویسید:\n\nبرای لغو: /cancel")
+            s = db.get_settings(group_id); lang = s.get('lang','fa')
+            await query.edit_message_text(t("badwords_add_prompt", lang))
 
         elif data.startswith("delbadword:"):
             await show_del_badword(query, int(data.split(":")[1]))
@@ -1254,7 +1258,8 @@ async def private_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         group_id = int(action.split(':')[1])
         db.add_bad_word(group_id, text.strip())
         context.user_data.clear()
-        await update.message.reply_text(f"✅ کلمه «{text.strip()}» اضافه شد.")
+        s = db.get_settings(group_id); lang = s.get('lang','fa')
+        await update.message.reply_text(t("badwords_added", lang, word=text.strip()))
 
     elif action.startswith('contact_owner:'):
         group_id = int(action.split(':')[1])
