@@ -1038,7 +1038,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(f"✅ اخطارهای کاربر {uid} ریست شد.")
 
         # پنل سازنده
-        elif data.startswith("admin:") and data not in ["admin:subs"] and not data.startswith("admin:grp:") and not data.startswith("admin:sub:") and not data.startswith("admin:unsub:") and not data.startswith("admin:act:") and not data.startswith("admin:deact:") and not data.startswith("admin:days:"):
+        elif data in ["admin:list", "admin:stats", "admin:broadcast", "admin:back"]:
             if not is_owner(user.id):
                 await query.answer("❌ دسترسی ندارید!", show_alert=True); return
             cmd = data[6:]
