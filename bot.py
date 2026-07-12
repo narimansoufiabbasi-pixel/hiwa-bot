@@ -4,6 +4,7 @@
 import logging
 import asyncio
 import re
+import random
 from datetime import datetime, timedelta, timezone
 from telegram import Update, ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -1038,38 +1039,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(f"✅ اخطارهای کاربر {uid} ریست شد.")
 
         # پنل سازنده
-        elif data in ["admin:list", "admin:stats", "admin:broadcast", "admin:back"]:
-            if not is_owner(user.id):
-                await query.answer("❌ دسترسی ندارید!", show_alert=True); return
-            cmd = data[6:]
-            if cmd == "stats":
-                ag = db.get_all_active_groups(); allg = db.get_all_groups()
-                keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="admin:back")]]
-                await query.edit_message_text(f"📊 آمار کلی\n\n📁 کل: {len(allg)}\n✅ فعال: {len(ag)}\n❌ غیرفعال: {len(allg)-len(ag)}",
-                    reply_markup=InlineKeyboardMarkup(keyboard))
-            elif cmd == "list":
-                allg = db.get_all_groups()
-                keyboard = []
-                for g in allg[:20]:
-                    st = "✅" if g.get('is_active') else "❌"
-                    keyboard.append([InlineKeyboardButton(f"{st} {g.get('group_name','نامشخص')}", callback_data=f"admin:grp:{g['group_id']}")])
-                keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data="admin:back")])
-                await query.edit_message_text("📋 لیست گروه‌ها:", reply_markup=InlineKeyboardMarkup(keyboard))
-            elif cmd == "broadcast":
-                context.user_data['action'] = 'broadcast'
-                await query.edit_message_text("📢 پیام خود را بنویسید:\n\nبرای لغو: /cancel")
-            elif cmd == "back":
-                ag = db.get_all_active_groups(); allg = db.get_all_groups()
-                keyboard = [
-                    [InlineKeyboardButton("📋 لیست گروه‌ها", callback_data="admin:list")],
-                    [InlineKeyboardButton("📊 آمار کلی", callback_data="admin:stats")],
-                    [InlineKeyboardButton("📢 پیام به همه", callback_data="admin:broadcast")],
-                    [InlineKeyboardButton("💰 مدیریت اشتراک‌ها", callback_data="admin:subs")],
-                    [InlineKeyboardButton("👤 پنل مدیریت گروه‌ها", callback_data="mygroups")],
-                ]
-                await query.edit_message_text(f"🤖 پنل سازنده\n\n✅ فعال: {len(ag)} | 📁 کل: {len(allg)}",
-                    reply_markup=InlineKeyboardMarkup(keyboard))
-
         elif data == "admin:subs":
             if not is_owner(user.id): return
             allg = db.get_all_groups()
@@ -1205,12 +1174,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.edit_message_text("✅ ربات از گروه خارج شد.")
             except Exception as e:
                 await query.edit_message_text(f"❌ خطا: {e}")
-
-        elif data.startswith("contact_owner:"):
-            group_id = int(data.split(":")[1])
-            context.user_data['action'] = f'contact_owner:{group_id}'
-            lang = db.get_settings(group_id).get('lang', 'fa')
-            await query.edit_message_text("📞 ارتباط با سازنده\n\nپیام یا فیش واریز خود را بفرستید:\n\nبرای لغو: /cancel")
 
     except Exception as e:
         logger.error(f"Button error: {e}", exc_info=True)
@@ -1547,6 +1510,51 @@ async def filter_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
         txt_norm = normalize_digits(txt)
         if s.get('lock_link') and ('t.me/' in txt or 'telegram.me/' in txt):
             reason = t("lock_link", lang)
+        elif data.startswith("admin:"):
+            if not is_owner(user.id):
+                await query.answer("❌ دسترسی ندارید!", show_alert=True); return
+            cmd = data[6:]
+            if cmd == "stats":
+                ag = db.get_all_active_groups(); allg = db.get_all_groups()
+                keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="admin:back")]]
+                await query.edit_message_text(f"📊 آمار کلی\n\n📁 کل: {len(allg)}\n✅ فعال: {len(ag)}\n❌ غیرفعال: {len(allg)-len(ag)}",
+                    reply_markup=InlineKeyboardMarkup(keyboard))
+            elif cmd == "list":
+                allg = db.get_all_groups()
+                keyboard = []
+                for g in allg[:20]:
+                    s = "✅" if g.get('is_active') else "❌"
+                    keyboard.append([InlineKeyboardButton(f"{s} {g.get('group_name','نامشخص')}", callback_data=f"admin:grp:{g['group_id']}")])
+                keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data="admin:back")])
+                await query.edit_message_text("📋 لیست گروه‌ها:", reply_markup=InlineKeyboardMarkup(keyboard))
+            elif cmd == "broadcast":
+                context.user_data['action'] = 'broadcast'
+                await query.edit_message_text("📢 پیام خود را بنویسید:\n\nبرای لغو: /cancel")
+            elif cmd == "back":
+                ag = db.get_all_active_groups(); allg = db.get_all_groups()
+                keyboard = [
+                    [InlineKeyboardButton("📋 لیست گروه‌ها", callback_data="admin:list")],
+                    [InlineKeyboardButton("📊 آمار کلی", callback_data="admin:stats")],
+                    [InlineKeyboardButton("📢 پیام به همه", callback_data="admin:broadcast")],
+                    [InlineKeyboardButton("💰 مدیریت اشتراک‌ها", callback_data="admin:subs")],
+                    [InlineKeyboardButton("👤 پنل مدیریت گروه‌ها", callback_data="mygroups")],
+                ]
+                await query.edit_message_text(f"🤖 پنل سازنده\n\n✅ فعال: {len(ag)} | 📁 کل: {len(allg)}",
+                    reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+        elif data.startswith("contact_owner:"):
+            group_id = int(data.split(":")[1])
+            context.user_data['action'] = f'contact_owner:{group_id}'
+            await query.edit_message_text("📞 ارتباط با سازنده\n\nپیام یا فیش واریز خود را بفرستید:\n\nبرای لغو: /cancel")
+
+
+
+
+
+
+
+
         elif s.get('lock_site') and any(x in txt for x in ['http://','https://','www.']):
             reason = t("lock_site", lang)
         elif s.get('lock_id') and '@' in txt:
@@ -1691,6 +1699,39 @@ async def handle_public_commands(update: Update, context: ContextTypes.DEFAULT_T
     elif txt.lower() in cmd_why:
         r = db.get_last_delete_reason(group_id, user.id)
         await msg.reply_text(t("why_deleted", lang, reason=r) if r else t("not_found", lang))
+    elif txt.strip() in ["!شرشر", "!سنگ", "!کاغذ", "!قیچی", "/rps", "!rps"]:
+        choices = {"سنگ": "🪨", "کاغذ": "📄", "قیچی": "✂️"}
+        user_choice = None
+        if "سنگ" in txt:
+            user_choice = "سنگ"
+        elif "کاغذ" in txt:
+            user_choice = "کاغذ"
+        elif "قیچی" in txt:
+            user_choice = "قیچی"
+
+        if not user_choice:
+            await msg.reply_text(
+                "🎮 بازی سنگ کاغذ قیچی!\n\n"
+                "یکی از این‌ها رو بفرست:\n"
+                "!سنگ 🪨\n!کاغذ 📄\n!قیچی ✂️"
+            )
+        else:
+            bot_choice = random.choice(list(choices.keys()))
+            if user_choice == bot_choice:
+                result = "🤝 مساوی شد!"
+            elif (
+                (user_choice == "سنگ" and bot_choice == "قیچی") or
+                (user_choice == "کاغذ" and bot_choice == "سنگ") or
+                (user_choice == "قیچی" and bot_choice == "کاغذ")
+            ):
+                result = "🎉 بردی!"
+            else:
+                result = "😅 باختی!"
+            await msg.reply_text(
+                f"شما: {choices[user_choice]} {user_choice}\n"
+                f"ربات: {choices[bot_choice]} {bot_choice}\n\n"
+                f"{result}"
+            )
     else:
         # Gemini AI
         bot_username = (await context.bot.get_me()).username
