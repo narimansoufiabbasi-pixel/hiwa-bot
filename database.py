@@ -1,7 +1,10 @@
 import sqlite3
+import os
 from datetime import datetime, timedelta
 
-DB_PATH = "hiwa_bot.db"
+# اگه Railway Volume در /data وصل باشه از اونجا استفاده کن، وگرنه محلی
+DB_DIR = "/data" if os.path.isdir("/data") else "."
+DB_PATH = os.path.join(DB_DIR, "hiwa_bot.db")
 
 def get_conn():
     conn = sqlite3.connect(DB_PATH)

@@ -1206,6 +1206,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 await query.edit_message_text(f"❌ خطا: {e}")
 
+        elif data.startswith("contact_owner:"):
+            group_id = int(data.split(":")[1])
+            context.user_data['action'] = f'contact_owner:{group_id}'
+            lang = db.get_settings(group_id).get('lang', 'fa')
+            await query.edit_message_text("📞 ارتباط با سازنده\n\nپیام یا فیش واریز خود را بفرستید:\n\nبرای لغو: /cancel")
+
     except Exception as e:
         logger.error(f"Button error: {e}", exc_info=True)
         try: await query.edit_message_text("❌ خطایی رخ داد. /start بزنید.")
@@ -1541,18 +1547,6 @@ async def filter_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
         txt_norm = normalize_digits(txt)
         if s.get('lock_link') and ('t.me/' in txt or 'telegram.me/' in txt):
             reason = t("lock_link", lang)
-        elif data.startswith("contact_owner:"):
-            group_id = int(data.split(":")[1])
-            context.user_data['action'] = f'contact_owner:{group_id}'
-            await query.edit_message_text("📞 ارتباط با سازنده\n\nپیام یا فیش واریز خود را بفرستید:\n\nبرای لغو: /cancel")
-
-
-
-
-
-
-
-
         elif s.get('lock_site') and any(x in txt for x in ['http://','https://','www.']):
             reason = t("lock_site", lang)
         elif s.get('lock_id') and '@' in txt:
