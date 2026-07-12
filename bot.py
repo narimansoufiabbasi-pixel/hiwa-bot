@@ -165,11 +165,24 @@ async def show_my_groups(target, context, user_id, edit=False, lang="fa"):
     all_groups = db.get_all_active_groups()
     user_groups = []
     for g in all_groups:
-        try:
-            member = await context.bot.get_chat_member(g['group_id'], user_id)
-            if member.status in ['administrator', 'creator']:
-                user_groups.append(g)
-        except: pass
+        is_admin = False
+        # تلاش اول برای گرفتن وضعیت عضویت
+        for attempt in range(2):
+            try:
+                member = await context.bot.get_chat_member(g['group_id'], user_id)
+                if member.status in ['administrator', 'creator']:
+                    is_admin = True
+                break
+            except Exception as e:
+                logger.warning(f"get_chat_member attempt {attempt+1} failed for group {g['group_id']}: {e}")
+                if attempt == 0:
+                    await asyncio.sleep(1)
+                    continue
+        # اگر باز هم نشد چک کنیم، ولی owner_id با این کاربر یکی بود، بازم نشونش بده
+        if not is_admin and g.get('owner_id') == user_id:
+            is_admin = True
+        if is_admin:
+            user_groups.append(g)
 
     if not user_groups:
         text = t("no_groups", lang)
