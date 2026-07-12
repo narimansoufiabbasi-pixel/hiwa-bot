@@ -1038,6 +1038,38 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(f"✅ اخطارهای کاربر {uid} ریست شد.")
 
         # پنل سازنده
+        elif data.startswith("admin:") and data not in ["admin:subs"] and not data.startswith("admin:grp:") and not data.startswith("admin:sub:") and not data.startswith("admin:unsub:") and not data.startswith("admin:act:") and not data.startswith("admin:deact:") and not data.startswith("admin:days:"):
+            if not is_owner(user.id):
+                await query.answer("❌ دسترسی ندارید!", show_alert=True); return
+            cmd = data[6:]
+            if cmd == "stats":
+                ag = db.get_all_active_groups(); allg = db.get_all_groups()
+                keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="admin:back")]]
+                await query.edit_message_text(f"📊 آمار کلی\n\n📁 کل: {len(allg)}\n✅ فعال: {len(ag)}\n❌ غیرفعال: {len(allg)-len(ag)}",
+                    reply_markup=InlineKeyboardMarkup(keyboard))
+            elif cmd == "list":
+                allg = db.get_all_groups()
+                keyboard = []
+                for g in allg[:20]:
+                    st = "✅" if g.get('is_active') else "❌"
+                    keyboard.append([InlineKeyboardButton(f"{st} {g.get('group_name','نامشخص')}", callback_data=f"admin:grp:{g['group_id']}")])
+                keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data="admin:back")])
+                await query.edit_message_text("📋 لیست گروه‌ها:", reply_markup=InlineKeyboardMarkup(keyboard))
+            elif cmd == "broadcast":
+                context.user_data['action'] = 'broadcast'
+                await query.edit_message_text("📢 پیام خود را بنویسید:\n\nبرای لغو: /cancel")
+            elif cmd == "back":
+                ag = db.get_all_active_groups(); allg = db.get_all_groups()
+                keyboard = [
+                    [InlineKeyboardButton("📋 لیست گروه‌ها", callback_data="admin:list")],
+                    [InlineKeyboardButton("📊 آمار کلی", callback_data="admin:stats")],
+                    [InlineKeyboardButton("📢 پیام به همه", callback_data="admin:broadcast")],
+                    [InlineKeyboardButton("💰 مدیریت اشتراک‌ها", callback_data="admin:subs")],
+                    [InlineKeyboardButton("👤 پنل مدیریت گروه‌ها", callback_data="mygroups")],
+                ]
+                await query.edit_message_text(f"🤖 پنل سازنده\n\n✅ فعال: {len(ag)} | 📁 کل: {len(allg)}",
+                    reply_markup=InlineKeyboardMarkup(keyboard))
+
         elif data == "admin:subs":
             if not is_owner(user.id): return
             allg = db.get_all_groups()
@@ -1509,39 +1541,6 @@ async def filter_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
         txt_norm = normalize_digits(txt)
         if s.get('lock_link') and ('t.me/' in txt or 'telegram.me/' in txt):
             reason = t("lock_link", lang)
-        elif data.startswith("admin:"):
-            if not is_owner(user.id):
-                await query.answer("❌ دسترسی ندارید!", show_alert=True); return
-            cmd = data[6:]
-            if cmd == "stats":
-                ag = db.get_all_active_groups(); allg = db.get_all_groups()
-                keyboard = [[InlineKeyboardButton("🔙 برگشت", callback_data="admin:back")]]
-                await query.edit_message_text(f"📊 آمار کلی\n\n📁 کل: {len(allg)}\n✅ فعال: {len(ag)}\n❌ غیرفعال: {len(allg)-len(ag)}",
-                    reply_markup=InlineKeyboardMarkup(keyboard))
-            elif cmd == "list":
-                allg = db.get_all_groups()
-                keyboard = []
-                for g in allg[:20]:
-                    s = "✅" if g.get('is_active') else "❌"
-                    keyboard.append([InlineKeyboardButton(f"{s} {g.get('group_name','نامشخص')}", callback_data=f"admin:grp:{g['group_id']}")])
-                keyboard.append([InlineKeyboardButton("🔙 برگشت", callback_data="admin:back")])
-                await query.edit_message_text("📋 لیست گروه‌ها:", reply_markup=InlineKeyboardMarkup(keyboard))
-            elif cmd == "broadcast":
-                context.user_data['action'] = 'broadcast'
-                await query.edit_message_text("📢 پیام خود را بنویسید:\n\nبرای لغو: /cancel")
-            elif cmd == "back":
-                ag = db.get_all_active_groups(); allg = db.get_all_groups()
-                keyboard = [
-                    [InlineKeyboardButton("📋 لیست گروه‌ها", callback_data="admin:list")],
-                    [InlineKeyboardButton("📊 آمار کلی", callback_data="admin:stats")],
-                    [InlineKeyboardButton("📢 پیام به همه", callback_data="admin:broadcast")],
-                    [InlineKeyboardButton("💰 مدیریت اشتراک‌ها", callback_data="admin:subs")],
-                    [InlineKeyboardButton("👤 پنل مدیریت گروه‌ها", callback_data="mygroups")],
-                ]
-                await query.edit_message_text(f"🤖 پنل سازنده\n\n✅ فعال: {len(ag)} | 📁 کل: {len(allg)}",
-                    reply_markup=InlineKeyboardMarkup(keyboard))
-
-
         elif data.startswith("contact_owner:"):
             group_id = int(data.split(":")[1])
             context.user_data['action'] = f'contact_owner:{group_id}'
